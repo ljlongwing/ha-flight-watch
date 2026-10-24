@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Flight Watch",
+        "description": "Where should flight alerts go? Leave empty to get them as Home Assistant notifications.",
+        "data": {
+          "notify_entities": "Send alerts to",
+          "notify_events": "Alerts to send",
+          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)"
+        },
+        "data_description": {
+          "notify_entities": "Any notify entity: Telegram, the mobile app, email and so on.",
+          "aerodatabox_key": "Only for showing routes of flights more than 8 days out. Free plan at rapidapi.com/aedbx-aedbx/api/aerodatabox."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Flight Watch is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Flight Watch",
+        "data": {
+          "notify_entities": "Send alerts to",
+          "notify_events": "Alerts to send",
+          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)"
+        },
+        "data_description": {
+          "notify_entities": "Any notify entity: Telegram, the mobile app, email and so on.",
+          "aerodatabox_key": "Only for showing routes of flights more than 8 days out."
+        }
+      }
+    }
+  },
+  "selector": {
+    "notify_events": {
+      "options": {
+        "tracking": "Now tracking (on the day of the flight)",
+        "left_gate": "Left the gate",
+        "took_off": "Took off",
+        "landed": "Landed",
+        "arrived_gate": "At the gate",
+        "removed": "Stopped tracking",
+        "problem": "Problems (not found, already landed)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "flights": { "name": "Tracked flights" }
+    }
+  },
+  "services": {
+    "add_flight": {
+      "name": "Add flight",
+      "description": "Track a flight on a given day. Several flights of one trip can be added at once.",
+      "fields": {
+        "flight": { "name": "Flight", "description": "Flight number(s): AS300, 'Alaska 300', 'Southwest 1570/1875'." },
+        "date": { "name": "Date", "description": "Departure date, local to the departure airport." },
+        "who": { "name": "Who", "description": "Optional name, e.g. Tony, so alerts read \"Tony's flight\"." }
+      }
+    },
+    "remove_flight": {
+      "name": "Remove flight",
+      "description": "Stop tracking or drop an upcoming flight (ids from the Tracked flights sensor).",
+      "fields": {
+        "id": { "name": "ID", "description": "One or more flight ids." }
+      }
+    }
+  }
+}

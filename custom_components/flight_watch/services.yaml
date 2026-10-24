@@ -1,0 +1,22 @@
+add_flight:
+  fields:
+    flight:
+      required: true
+      example: "Southwest 1570/1875"
+      selector:
+        text:
+    date:
+      required: true
+      selector:
+        date:
+    who:
+      example: "Tony"
+      selector:
+        text:
+remove_flight:
+  fields:
+    id:
+      required: true
+      selector:
+        text:
+          multiple: true
