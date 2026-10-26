@@ -46,14 +46,37 @@ function when(ts, ap, home, withDay = true, count = true) {
 
 const place = (ap) => (ap && ap.city && ap.iata ? `${ap.city} (${ap.iata})` : (ap && (ap.city || ap.iata)) || "?");
 
-function route(legs) {
-  if (!legs.length || !legs[0].origin || !legs[0].origin.iata) return "";
-  const stops = [legs[0].origin];
+// Legs up to the trip's destination: a flight number that continues back (AA590 DFW→MCO→DFW) is cut off.
+function tripLegs(legs) {
+  if (!legs.length || !legs[0].origin || !legs[0].origin.iata) return [];
+  const seen = [legs[0].origin.iata];
+  const out = [];
   for (const l of legs) {
-    if (stops.some((s) => s.iata === l.destination.iata)) break;
-    stops.push(l.destination);
+    if (seen.includes(l.destination.iata)) break;
+    seen.push(l.destination.iata);
+    out.push(l);
   }
-  return stops.map(place).join(" → ");
+  return out;
+}
+
+function route(legs) {
+  const used = tripLegs(legs);
+  return used.length ? [legs[0].origin, ...used.map((l) => l.destination)].map(place).join(" → ") : "";
+}
+
+const hm = (sec) => {
+  const m = Math.round(sec / 60);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+};
+
+// Scheduled gate-to-gate time; timestamps are UTC so time zones don't matter.
+function duration(legs) {
+  const used = tripLegs(legs);
+  if (!used.length || used.some((l) => !l.sched_dep || !l.sched_arr)) return "";
+  const total = used[used.length - 1].sched_arr - used[0].sched_dep;
+  if (used.length === 1) return ` · ${hm(total)} flight`;
+  const layover = total - used.reduce((t, l) => t + l.sched_arr - l.sched_dep, 0);
+  return ` · ${hm(total)} total (${hm(layover)} layover${used.length > 2 ? "s" : ""})`;
 }
 
 function legStatus(l) {
@@ -221,6 +244,7 @@ class FlightWatchCard extends HTMLElement {
           <tr><th></th><th>Scheduled</th><th>Actual / estimated</th></tr>
           <tr><td>Depart</td><td>${esc(when(l.sched_dep, l.origin, home, true, false))}</td><td>${esc(depAct ? when(depAct, l.origin, home) : "–")}</td></tr>
           <tr><td>Arrive</td><td>${esc(when(l.sched_arr, l.destination, home, true, false))}</td><td>${esc(arrAct ? when(arrAct, l.destination, home) : "–")}</td></tr>
+          <tr><td>Duration</td><td>${l.sched_dep && l.sched_arr ? hm(l.sched_arr - l.sched_dep) : "–"}</td><td>${depAct && arrAct ? hm(arrAct - depAct) : "–"}</td></tr>
         </table>
       </div>
       <button class="x" title="Stop tracking" data-ids="${esc(e.id)}" data-ask="Stop tracking ${esc(l.number)}? Its alerts stop too.">✖</button>
@@ -242,7 +266,7 @@ class FlightWatchCard extends HTMLElement {
     return `
       <div class="flight"><div class="row"><div class="main">
         <div class="title">${t.who ? `${esc(t.who)} · ` : ""}${esc(al)}${esc(nums)}</div>
-        <div class="sub">${esc(d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }))} · ${rel}${r ? `\n${esc(r)}${esc(dep)}${esc(src)}` : ""}${wait}</div>
+        <div class="sub">${esc(d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }))} · ${rel}${r ? `\n${esc(r)}${esc(dep)}${esc(duration(legs))}${esc(src)}` : ""}${wait}</div>
       </div>
       <button class="x" title="Remove" data-ids="${esc(ids)}" data-ask="Remove this trip (${esc(nums)})?">✖</button>
       </div></div>`;
