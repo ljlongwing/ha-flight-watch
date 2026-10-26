@@ -120,6 +120,7 @@ class FlightWatchCard extends HTMLElement {
   setConfig(config) {
     this._config = { entity: DEFAULT_ENTITY, map: true, title: "Flights", ...config };
     this._built = false;
+    this._key = this._map = null; // rebuilt DOM is empty (map included), so render on the next hass
   }
 
   static getStubConfig() {
@@ -147,7 +148,7 @@ class FlightWatchCard extends HTMLElement {
     }
     if (this._map) {
       const cfg = this._mapConfig();
-      if (cfg.entities.join() !== this._mapEntities) this._setMapConfig(cfg);
+      if (JSON.stringify(cfg.entities) !== this._mapEntities) this._setMapConfig(cfg);
       this._map.hass = hass;
     }
   }
@@ -158,11 +159,17 @@ class FlightWatchCard extends HTMLElement {
     const entities = Object.keys(s).filter((id) => id.startsWith("geo_location.") && s[id].attributes.source === "flight_watch").sort();
     // Window, not box width: the box is display:none (width 0) when the config is rebuilt between flights.
     const aspect_ratio = window.innerWidth > 900 ? "3:1" : "2:1";
-    return { type: "map", entities, hours_to_show: 6, aspect_ratio };
+    // colors: { Heather: pink } by who (or flight number); unlisted ones get the map's palette.
+    const colors = this._config.colors || {};
+    const list = entities.map((entity) => {
+      const color = colors[s[entity].attributes.friendly_name] || colors[s[entity].attributes.flight];
+      return color ? { entity, color } : entity;
+    });
+    return { type: "map", entities: list, hours_to_show: 6, aspect_ratio };
   }
 
   _setMapConfig(cfg) {
-    this._mapEntities = cfg.entities.join();
+    this._mapEntities = JSON.stringify(cfg.entities);
     this._map.setConfig(cfg);
   }
 
@@ -396,9 +403,10 @@ class FlightWatchCard extends HTMLElement {
     // The map card defaults to square, which is a whole screen tall at panel width.
     const cfg = this._mapConfig();
     this._map = helpers.createCardElement(cfg);
-    this._mapEntities = cfg.entities.join();
+    this._mapEntities = JSON.stringify(cfg.entities);
     this._map.hass = this._hass;
     box.appendChild(this._map);
+    this._mapLoading = false;
     this._fit();
   }
 }

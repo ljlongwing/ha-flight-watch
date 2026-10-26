@@ -28,6 +28,9 @@ type: custom:flight-watch-card
 title: Flights          # optional
 map: true               # optional, live map of airborne flights
 entity: sensor.flight_watch_tracked_flights  # optional
+colors:                 # optional, map marker/trail color by who (or flight number)
+  Heather: pink         # a theme color name (red, blue, deep-orange, ...) or any CSS color like "#e91e63"
+  Anthony: blue
 ```
 
 ## Settings
