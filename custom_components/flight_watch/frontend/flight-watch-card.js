@@ -2,6 +2,8 @@
 // Plain custom element, no build step. Data comes from the Flight Watch sensor's attributes.
 
 const DEFAULT_ENTITY = "sensor.flight_watch_tracked_flights";
+// Same as the brand icon (assets/icon.svg); inlined because /api/brands needs auth.
+const LOGO = `<svg class="logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"> <circle cx="128" cy="128" r="122" fill="#039BE5"/> <g fill="none" stroke="#fff" stroke-linecap="round" opacity=".45" stroke-width="9"> <path d="M40 170 A92 92 0 0 1 86 40"/> </g> <path fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 16" opacity=".8" d="M50 214 Q66 182 92 166"/> <path fill="#fff" transform="translate(140 120) rotate(45) scale(1.25)" d="M0,-62 C6,-62 9,-55 9,-46 L9,-14 L62,16 L62,30 L9,14 L9,42 L26,54 L26,63 L0,57 L-26,63 L-26,54 L-9,42 L-9,14 L-62,30 L-62,16 L-9,-14 L-9,-46 C-9,-55 -6,-62 0,-62 Z"/> </svg>`;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -111,7 +113,8 @@ class FlightWatchCard extends HTMLElement {
       <ha-card>
         <style>
           .fw { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-          .fw h2 { margin: 0; font-size: 1.25em; font-weight: 500; }
+          .fw h2 { margin: 0; font-size: 1.25em; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+          .fw h2 .logo { width: 32px; height: 32px; flex: none; }
           .tracked, .upcoming { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 8px; }
           .tracked > .empty, .upcoming > .empty { grid-column: 1 / -1; }
           .fw h3 { margin: 8px 0 0; font-size: 1em; font-weight: 500; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
@@ -152,7 +155,7 @@ class FlightWatchCard extends HTMLElement {
           </form>
         </div>
       </ha-card>`;
-    this.querySelector("h2").textContent = this._config.title;
+    this.querySelector("h2").innerHTML = `${LOGO}<span>${esc(this._config.title)}</span>`;
     const form = this.querySelector("form");
     form.date.value = localToday();
     form.addEventListener("submit", (ev) => this._add(ev, form));
