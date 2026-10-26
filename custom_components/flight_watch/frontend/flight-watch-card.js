@@ -255,7 +255,9 @@ class FlightWatchCard extends HTMLElement {
     if (this._map || this._mapLoading) return;
     this._mapLoading = true;
     const helpers = await window.loadCardHelpers();
-    this._map = helpers.createCardElement({ type: "map", geo_location_sources: ["flight_watch"], hours_to_show: 6, auto_fit: true });
+    // The map card defaults to square, which is a whole screen tall at panel width.
+    const aspect_ratio = box.clientWidth > 700 ? "2.5:1" : "1:1";
+    this._map = helpers.createCardElement({ type: "map", geo_location_sources: ["flight_watch"], hours_to_show: 6, auto_fit: true, aspect_ratio });
     this._map.hass = this._hass;
     box.appendChild(this._map);
   }
