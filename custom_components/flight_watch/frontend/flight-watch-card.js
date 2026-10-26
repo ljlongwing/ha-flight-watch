@@ -93,6 +93,19 @@ function delay(l) {
   return d > 10 ? `⚠️ ${d} min late` : d < -5 ? `✅ ${-d} min early` : "✅ On time";
 }
 
+// Trips = same who + same day (no who = on its own).
+function trips(entries) {
+  const out = [];
+  for (const e of entries) {
+    const t = e.who && out.find((x) => x.who === e.who && x.date === e.date);
+    if (t) t.entries.push(e);
+    else out.push({ who: e.who, date: e.date, entries: [e] });
+  }
+  return out;
+}
+
+const uniq = (xs) => xs.filter((x, i) => xs.findIndex((y) => y.iata === x.iata) === i);
+
 function localToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -146,7 +159,8 @@ class FlightWatchCard extends HTMLElement {
           .row .main { flex: 1; min-width: 0; }
           .title { font-weight: 500; }
           .sub { color: var(--secondary-text-color); font-size: .9em; white-space: pre-line; }
-          table { width: 100%; border-collapse: collapse; font-size: .9em; margin-top: 6px; }
+          table { width: 100%; border-collapse: collapse; font-size: .9em; margin-top: 6px; table-layout: fixed; }
+          td:first-child, th:first-child { width: 72px; } /* same columns in every leg of a trip */
           td, th { text-align: left; padding: 2px 6px 2px 0; vertical-align: top; }
           th { color: var(--secondary-text-color); font-weight: 400; }
           .x { background: none; border: none; color: var(--error-color, #db4437); cursor: pointer; font-size: 1.2em; padding: 0 4px; line-height: 1; }
@@ -156,6 +170,12 @@ class FlightWatchCard extends HTMLElement {
           form .wide { grid-column: 1 / -1; }
           form button { grid-column: 1 / -1; font: inherit; padding: 8px; border: none; border-radius: 8px; background: var(--primary-color); color: var(--text-primary-color, #fff); cursor: pointer; }
           .err { color: var(--error-color, #db4437); font-size: .9em; grid-column: 1 / -1; }
+          .err.info { color: var(--secondary-text-color); }
+          .leg { border-top: 1px solid var(--divider-color); margin-top: 10px; padding-top: 8px; }
+          .pick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--secondary-background-color); }
+          .pick[hidden] { display: none; }
+          .pick .q { flex-basis: 100%; }
+          .pick select { font: inherit; padding: 6px; margin-left: 6px; border-radius: 8px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); }
           @media (min-width: 900px) {
             form { grid-template-columns: 3fr 1fr 1fr auto; }
             form .wide, form button { grid-column: auto; }
@@ -174,6 +194,11 @@ class FlightWatchCard extends HTMLElement {
             <input name="date" type="date" required>
             <input name="who" placeholder="Who (optional)">
             <button type="submit">Add</button>
+            <div class="pick" hidden>
+              <div class="q"></div>
+              <label>Gets on at <select name="board"></select></label>
+              <label>Gets off at <select name="leave"></select></label>
+            </div>
             <div class="err"></div>
           </form>
         </div>
@@ -182,6 +207,8 @@ class FlightWatchCard extends HTMLElement {
     const form = this.querySelector("form");
     form.date.value = localToday();
     form.addEventListener("submit", (ev) => this._add(ev, form));
+    // A different flight or day needs a fresh lookup.
+    for (const f of [form.flight, form.date]) f.addEventListener("input", () => (form.querySelector(".pick").hidden = true));
     this.addEventListener("click", (ev) => {
       const b = ev.target.closest("button.x");
       if (b && confirm(b.dataset.ask)) this._hass.callService("flight_watch", "remove_flight", { id: b.dataset.ids.split(",") });
@@ -191,15 +218,55 @@ class FlightWatchCard extends HTMLElement {
   async _add(ev, form) {
     ev.preventDefault();
     const err = form.querySelector(".err");
+    const pick = form.querySelector(".pick");
+    const btn = form.querySelector("button");
     err.textContent = "";
+    err.classList.remove("info");
+    btn.disabled = true;
     try {
-      await this._hass.callService("flight_watch", "add_flight", { flight: form.flight.value, date: form.date.value, who: form.who.value });
+      const data = { flight: form.flight.value, date: form.date.value, who: form.who.value };
+      if (pick.hidden) {
+        err.textContent = "Looking up the flight…";
+        err.classList.add("info");
+        if (await this._askLegs(data, form)) return; // shown the picker; the next Add uses it
+      } else {
+        data.from = form.board.value;
+        data.to = form.leave.value;
+      }
+      await this._hass.callService("flight_watch", "add_flight", data);
       form.flight.value = "";
       form.who.value = "";
+      pick.hidden = true;
       // Date is kept, so the legs of one trip can be added in a row.
     } catch (e) {
       err.textContent = e.message || String(e);
+    } finally {
+      if (err.classList.contains("info")) err.textContent = "";
+      btn.disabled = false;
     }
+  }
+
+  // A flight number with several legs that day: ask where they get on and off. True if asked.
+  async _askLegs(data, form) {
+    let flights;
+    try {
+      const r = await this._hass.callService("flight_watch", "lookup_flight", { flight: data.flight, date: data.date }, undefined, false, true);
+      flights = r.response.flights;
+    } catch (e) {
+      return false; // can't look it up now: add it, legs get picked automatically later
+    }
+    const multi = flights.filter((f) => f.legs.length > 1);
+    if (!multi.length) return false;
+    const legs = flights.flatMap((f) => f.legs).sort((x, y) => x.sched_dep - y.sched_dep);
+    const auto = tripLegs(legs);
+    const opts = (aps, sel) => uniq(aps).map((a) => `<option value="${esc(a.iata)}"${a.iata === sel ? " selected" : ""}>${esc(place(a))}</option>`).join("");
+    form.board.innerHTML = opts(legs.map((l) => l.origin), (auto[0] || legs[0]).origin.iata);
+    form.leave.innerHTML = opts(legs.map((l) => l.destination), (auto[auto.length - 1] || legs[legs.length - 1]).destination.iata);
+    const f = multi[0];
+    const stops = [f.legs[0].origin, ...f.legs.map((l) => l.destination)].map((a) => a.iata).join(" → ");
+    form.querySelector(".q").textContent = `${f.number} flies ${stops} that day. Where does ${data.who || "the traveller"} get on and off? Then press Add.`;
+    form.querySelector(".pick").hidden = false;
+    return true;
   }
 
   _render(st) {
@@ -215,40 +282,46 @@ class FlightWatchCard extends HTMLElement {
     const now = [...(a.tracking || []), ...(a.done || [])];
 
     tracked.innerHTML = now.length
-      ? now.map((e) => e.legs.map((l) => this._legHtml(e, l, home)).join("")).join("")
+      ? trips(now).map((t) => this._activeHtml(t, home)).join("")
       : `<div class="empty">No flights tracked today.</div>`;
 
-    // Trips = same who + same day (no who = on its own).
-    const trips = [];
-    for (const e of a.upcoming || []) {
-      const t = e.who && trips.find((x) => x.who === e.who && x.date === e.date);
-      if (t) t.entries.push(e);
-      else trips.push({ who: e.who, date: e.date, entries: [e] });
-    }
-    upcoming.innerHTML = trips.length ? trips.map((t) => this._tripHtml(t, home)).join("") : `<div class="empty">Nothing scheduled.</div>`;
+    const up = trips(a.upcoming || []);
+    upcoming.innerHTML = up.length ? up.map((t) => this._tripHtml(t, home)).join("") : `<div class="empty">Nothing scheduled.</div>`;
 
     this._renderMap(now.some((e) => e.legs.some((l) => l.live && l.lat != null)));
   }
 
-  _legHtml(e, l, home) {
-    const who = e.who ? `${esc(e.who)}'s flight · ` : "";
+  // One box per trip; a connection gets a section per leg.
+  _activeHtml(t, home) {
+    const legs = t.entries.flatMap((e) => e.legs).sort((x, y) => x.sched_dep - y.sched_dep);
+    if (!legs.length) return "";
+    const nums = t.entries.map((e) => e.number).join(" + ");
+    const ids = t.entries.map((e) => e.id).join(",");
+    const leg = (l) => `${esc(l.number)} · ${esc(place(l.origin))} → ${esc(place(l.destination))}`;
+    const head = legs.length === 1
+      ? `<div class="title">${t.who ? `${esc(t.who)}'s flight · ` : ""}${leg(legs[0])}</div>${this._legBody(legs[0], home)}`
+      : `<div class="title">${t.who ? `${esc(t.who)}'s trip · ` : "Trip · "}${esc(nums)}</div>
+         <div class="sub">${esc(route(legs))}${esc(duration(legs))}</div>
+         ${legs.map((l) => `<div class="leg"><div class="title">${leg(l)}</div>${this._legBody(l, home)}</div>`).join("")}`;
+    return `
+      <div class="flight"><div class="row"><div class="main">${head}</div>
+      <button class="x" title="Stop tracking" data-ids="${esc(ids)}" data-ask="Stop tracking ${esc(nums)}? Its alerts stop too.">✖</button>
+      </div></div>`;
+  }
+
+  _legBody(l, home) {
     const al = l.airline ? `${esc(l.airline)} · ` : "";
     const depAct = l.real_dep || l.est_dep;
     const arrAct = l.real_arr || l.est_arr;
     const term = l.destination.terminal ? ` · Terminal ${esc(l.destination.terminal)}` : "";
     return `
-      <div class="flight"><div class="row"><div class="main">
-        <div class="title">${who}${esc(l.number)} · ${esc(place(l.origin))} → ${esc(place(l.destination))}</div>
         <div class="sub">${legStatus(l)} · ${al}${esc(delay(l))}${term}</div>
         <table>
           <tr><th></th><th>Scheduled</th><th>Actual / estimated</th></tr>
           <tr><td>Depart</td><td>${esc(when(l.sched_dep, l.origin, home, true, false))}</td><td>${esc(depAct ? when(depAct, l.origin, home) : "–")}</td></tr>
           <tr><td>Arrive</td><td>${esc(when(l.sched_arr, l.destination, home, true, false))}</td><td>${esc(arrAct ? when(arrAct, l.destination, home) : "–")}</td></tr>
           <tr><td>Duration</td><td>${l.sched_dep && l.sched_arr ? hm(l.sched_arr - l.sched_dep) : "–"}</td><td>${depAct && arrAct ? hm(arrAct - depAct) : "–"}</td></tr>
-        </table>
-      </div>
-      <button class="x" title="Stop tracking" data-ids="${esc(e.id)}" data-ask="Stop tracking ${esc(l.number)}? Its alerts stop too.">✖</button>
-      </div></div>`;
+        </table>`;
   }
 
   _tripHtml(t, home) {

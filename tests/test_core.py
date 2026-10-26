@@ -120,6 +120,28 @@ def test_route_stops_before_repeat():
     assert core.route(legs) == "DEN → BNA → MCO"
 
 
+def _legs(*codes):
+    a = lambda c: {"iata": c, "city": None}  # noqa: E731
+    return [{"origin": a(o), "destination": a(d)} for o, d in zip(codes, codes[1:])]
+
+
+def _hops(legs):
+    return [(x["origin"]["iata"], x["destination"]["iata"]) for x in legs]
+
+
+def test_pick_legs():
+    aa590 = _legs("DFW", "MCO", "DFW")  # continues back after Heather gets off
+    assert _hops(core.pick_legs(aa590)) == [("DFW", "MCO")]
+    assert _hops(core.pick_legs(aa590, board="MCO")) == [("MCO", "DFW")]
+    wn = _legs("DEN", "BNA", "MCO", "FLL")
+    assert len(core.pick_legs(wn)) == 3
+    assert _hops(core.pick_legs(wn, leave="BNA")) == [("DEN", "BNA")]
+    assert _hops(core.pick_legs(wn, board="BNA", leave="MCO")) == [("BNA", "MCO")]
+    assert _hops(core.pick_legs(wn, connect_from={"BNA"})) == [("BNA", "MCO"), ("MCO", "FLL")]
+    assert _hops(core.pick_legs(wn, board="XXX")) == _hops(wn)  # unknown airport: no trim
+    assert core.pick_legs([]) == []
+
+
 def test_adb_leg():
     row = {"number": "WN 1570", "airline": {"name": "Southwest"},
            "departure": {"airport": {"iata": "DEN", "municipalityName": "Denver", "timeZone": "America/Denver"},

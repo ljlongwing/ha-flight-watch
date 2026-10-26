@@ -40,7 +40,8 @@ entity: sensor.flight_watch_tracked_flights  # optional
 
 ## Actions and events
 
-- `flight_watch.add_flight`: `flight` (`AS300`, `Alaska 300`, `Southwest 1570/1875`), `date`, optional `who`.
+- `flight_watch.add_flight`: `flight` (`AS300`, `Alaska 300`, `Southwest 1570/1875`), `date`, optional `who`, and optional `from`/`to` airport codes for a flight that makes several stops (several flights: `from` is the first, `to` the last). Without them, tracking starts where the person's earlier flight that day lands and stops before the route doubles back. The card asks when a flight has several legs.
+- `flight_watch.lookup_flight`: `flight`, `date`; returns every leg flown that day (response only).
 - `flight_watch.remove_flight`: `id` (from the sensor's attributes).
 - Event `flight_watch_event` on every change: `type` (`tracking`, `left_gate`, `took_off`, `landed`,
   `arrived_gate`, `removed`, `problem`), `flight`, `date`, `who`, `message`, `leg`. Use it for your own automations.

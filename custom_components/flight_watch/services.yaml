@@ -13,6 +13,14 @@ add_flight:
       example: "Tony"
       selector:
         text:
+    from:
+      example: "DFW"
+      selector:
+        text:
+    to:
+      example: "MCO"
+      selector:
+        text:
 remove_flight:
   fields:
     id:
@@ -20,3 +28,14 @@ remove_flight:
       selector:
         text:
           multiple: true
+lookup_flight:
+  fields:
+    flight:
+      required: true
+      example: "AA590"
+      selector:
+        text:
+    date:
+      required: true
+      selector:
+        date:

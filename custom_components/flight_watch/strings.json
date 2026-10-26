@@ -50,7 +50,9 @@
   },
   "entity": {
     "sensor": {
-      "flights": { "name": "Tracked flights" }
+      "flights": {
+        "name": "Tracked flights"
+      }
     }
   },
   "services": {
@@ -58,16 +60,50 @@
       "name": "Add flight",
       "description": "Track a flight on a given day. Several flights of one trip can be added at once.",
       "fields": {
-        "flight": { "name": "Flight", "description": "Flight number(s): AS300, 'Alaska 300', 'Southwest 1570/1875'." },
-        "date": { "name": "Date", "description": "Departure date, local to the departure airport." },
-        "who": { "name": "Who", "description": "Optional name, e.g. Tony, so alerts read \"Tony's flight\"." }
+        "flight": {
+          "name": "Flight",
+          "description": "Flight number(s): AS300, 'Alaska 300', 'Southwest 1570/1875'."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Departure date, local to the departure airport."
+        },
+        "who": {
+          "name": "Who",
+          "description": "Optional name, e.g. Tony, so alerts read \"Tony's flight\"."
+        },
+        "from": {
+          "name": "From",
+          "description": "Optional airport code where they get on, for a flight with several stops. Several flights: applies to the first."
+        },
+        "to": {
+          "name": "To",
+          "description": "Optional airport code where they get off. Several flights: applies to the last. Without it, tracking stops before the route doubles back."
+        }
       }
     },
     "remove_flight": {
       "name": "Remove flight",
       "description": "Stop tracking or drop an upcoming flight (ids from the Tracked flights sensor).",
       "fields": {
-        "id": { "name": "ID", "description": "One or more flight ids." }
+        "id": {
+          "name": "ID",
+          "description": "One or more flight ids."
+        }
+      }
+    },
+    "lookup_flight": {
+      "name": "Look up flight",
+      "description": "Every leg the flight(s) fly that day, to choose From/To before adding.",
+      "fields": {
+        "flight": {
+          "name": "Flight",
+          "description": "Flight number(s), as for Add flight."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Departure date, local to the departure airport."
+        }
       }
     }
   }

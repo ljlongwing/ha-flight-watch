@@ -88,6 +88,28 @@ def legs_on_date(legs: list[dict], day: date) -> list[dict]:
     return sorted((x for x in legs if local_date(x) == day), key=lambda x: x["sched_dep"])
 
 
+def pick_legs(legs: list[dict], board: str | None = None, leave: str | None = None,
+              connect_from: set[str] | frozenset[str] = frozenset()) -> list[dict]:
+    """The legs the passenger is on (one flight number can fly several legs a day).
+
+    Boards at `board`, else where their earlier flight that day lands (`connect_from`), else the first leg.
+    Gets off at `leave`, else before the route doubles back (AA590 DFW→MCO→DFW stops at MCO).
+    """
+    starts = {board} if board else connect_from
+    i = next((k for k, x in enumerate(legs) if x["origin"].get("iata") in starts), 0)
+    out: list[dict] = []
+    seen = {legs[i]["origin"].get("iata")} if legs else set()
+    for x in legs[i:]:
+        dest = x["destination"].get("iata")
+        if not leave and dest in seen:
+            break
+        out.append(x)
+        seen.add(dest)
+        if dest == leave:
+            break
+    return out
+
+
 def same_leg(a: dict, b: dict) -> bool:
     if a.get("fr24_id") and a.get("fr24_id") == b.get("fr24_id"):
         return True

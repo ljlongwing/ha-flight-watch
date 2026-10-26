@@ -110,19 +110,19 @@ class FlightWatch:
             return
         e["next_check"] = now + 6 * HOUR
         if day <= today + timedelta(days=FR24_WINDOW_DAYS):
-            legs = core.legs_on_date(core.legs_from_list(await self.api.flight_list(e["number"])), day)
+            legs = self._pick(e, core.legs_on_date(core.legs_from_list(await self.api.flight_list(e["number"])), day))
             if legs:
                 e["legs"], e["source"] = legs, "fr24"
         elif self.options.get(CONF_ADB_KEY) and e.get("source") != "fr24" and now - e.get("adb_checked", 0) > 7 * DAY:
             e["adb_checked"] = now
             rows = await self.api.adb(self.options[CONF_ADB_KEY], e["number"], e["date"]) or []
-            legs = sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"])
+            legs = self._pick(e, sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"]))
             if legs:
                 e["legs"], e["source"] = legs, "adb"
 
     async def _activate(self, e: dict, now: float, day: date) -> None:
         all_legs = core.legs_from_list(await self.api.flight_list(e["number"]))
-        legs = core.legs_on_date(all_legs, day)
+        legs = self._pick(e, core.legs_on_date(all_legs, day))
         if not legs:
             e["next_check"] = now + HOUR
             if not e.get("problem_sent"):
@@ -175,11 +175,38 @@ class FlightWatch:
 
     # ---------- services ----------
 
-    async def async_add(self, numbers: list[str], day: date, who: str) -> None:
+    def _pick(self, e: dict, legs: list[dict]) -> list[dict]:
+        """Only the legs this person flies; a connection starts where their other flight that day lands."""
+        lands = {o["legs"][-1]["destination"].get("iata") for o in self.entries.values()
+                 if o is not e and e.get("who") and o.get("who") == e["who"] and o["date"] == e["date"] and o["legs"]}
+        return core.pick_legs(legs, e.get("board"), e.get("leave"), lands)
+
+    async def async_lookup(self, numbers: list[str], day: date) -> list[dict]:
+        """Every leg each flight flies that day, so the card can ask where the person gets on and off."""
+        today = dt_util.now().date()
+        out = []
         for n in numbers:
+            legs: list[dict] = []
+            try:
+                if today - timedelta(days=1) <= day <= today + timedelta(days=FR24_WINDOW_DAYS):
+                    legs = core.legs_on_date(core.legs_from_list(await self.api.flight_list(n)), day)
+                elif self.options.get(CONF_ADB_KEY):
+                    rows = await self.api.adb(self.options[CONF_ADB_KEY], n, day.isoformat()) or []
+                    legs = sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"])
+            except (RateLimited, aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+                _LOGGER.debug("lookup %s: %s", n, err)  # legs unknown: added anyway, picked automatically later
+            out.append({"number": n, "legs": [{k: x.get(k) for k in ("origin", "destination", "sched_dep", "sched_arr")}
+                                               for x in legs]})
+        return out
+
+    async def async_add(self, numbers: list[str], day: date, who: str,
+                        board: str | None = None, leave: str | None = None) -> None:
+        for i, n in enumerate(numbers):
             eid = uuid.uuid4().hex[:12]
             self.entries[eid] = {"id": eid, "number": n, "date": day.isoformat(), "who": who.strip(),
-                                 "state": STATE_UPCOMING, "legs": [], "added": time.time(), "next_check": 0}
+                                 "state": STATE_UPCOMING, "legs": [], "added": time.time(), "next_check": 0,
+                                 # several numbers = one trip: boards the first, gets off the last
+                                 "board": board if i == 0 else None, "leave": leave if i == len(numbers) - 1 else None}
         await self._save()
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
         self.hass.async_create_task(self.async_tick())

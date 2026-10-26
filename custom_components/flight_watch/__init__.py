@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
@@ -24,7 +24,10 @@ ADD_SCHEMA = vol.Schema({
     vol.Required("flight"): cv.string,
     vol.Required("date"): cv.date,
     vol.Optional("who", default=""): cv.string,
+    vol.Optional("from"): vol.All(cv.string, vol.Upper),
+    vol.Optional("to"): vol.All(cv.string, vol.Upper),
 })
+LOOKUP_SCHEMA = vol.Schema({vol.Required("flight"): cv.string, vol.Required("date"): cv.date})
 REMOVE_SCHEMA = vol.Schema({vol.Required("id"): vol.All(cv.ensure_list, [cv.string])})
 
 
@@ -41,20 +44,26 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             raise ServiceValidationError("Flight Watch is not set up")
         return entries[0].runtime_data
 
-    async def add(call: ServiceCall) -> None:
+    def numbers(call: ServiceCall) -> list[str]:
         try:
-            numbers = parse_flights(call.data["flight"])
+            return parse_flights(call.data["flight"])
         except ValueError as err:
             raise ServiceValidationError(
                 f"Don't know the airline in '{err}'. Use the 2-letter code, e.g. AS300 or 'Alaska 300'."
             ) from err
-        await fw().async_add(numbers, call.data["date"], call.data["who"])
+
+    async def add(call: ServiceCall) -> None:
+        await fw().async_add(numbers(call), call.data["date"], call.data["who"], call.data.get("from"), call.data.get("to"))
+
+    async def lookup(call: ServiceCall) -> ServiceResponse:
+        return {"flights": await fw().async_lookup(numbers(call), call.data["date"])}
 
     async def remove(call: ServiceCall) -> None:
         await fw().async_remove(call.data["id"])
 
     hass.services.async_register(DOMAIN, "add_flight", add, ADD_SCHEMA)
     hass.services.async_register(DOMAIN, "remove_flight", remove, REMOVE_SCHEMA)
+    hass.services.async_register(DOMAIN, "lookup_flight", lookup, LOOKUP_SCHEMA, supports_response=SupportsResponse.ONLY)
     return True
 
 
