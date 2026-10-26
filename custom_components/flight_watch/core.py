@@ -53,8 +53,9 @@ def leg_from_fr24(f: dict) -> dict:
         "status": status.get("text"),
         **_times(f.get("time") or {}),
     }
-    dest = ap.get("destination") or {}
-    leg["destination"]["terminal"] = (dest.get("info") or {}).get("terminal")
+    for k in ("origin", "destination"):
+        info = (ap.get(k) or {}).get("info") or {}
+        leg[k].update(terminal=info.get("terminal"), gate=info.get("gate"), baggage=info.get("baggage"))
     trail = f.get("trail") or []
     if trail:
         p = trail[0]  # newest first
@@ -251,24 +252,31 @@ def _city(ap: dict) -> str:
     return ap.get("city") or ap.get("iata") or "?"
 
 
+def _where(d: dict) -> str:
+    """'Terminal B · Gate 159 · Bags T4C1', whichever FR24 has."""
+    return " · ".join(f"{label} {d[k]}" for label, k in (("Terminal", "terminal"), ("Gate", "gate"), ("Bags", "baggage")) if d.get(k))
+
+
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
     name = who or leg["number"]
     sub = _sub(leg["number"], [leg], who)
     o, d = leg["origin"], leg["destination"]
     if event == EV_LEFT_GATE:
-        head, at, ap = f"🚶 {name} left the gate in {_city(o)}", now, o
+        gate = f"gate {o['gate']}" if o.get("gate") else "the gate"
+        head, at, ap = f"🚶 {name} left {gate} in {_city(o)}", now, o
     elif event == EV_TOOK_OFF:
         head, at, ap = f"🛫 {name} took off from {_city(o)}", leg.get("real_dep") or now, o
     elif event == EV_LANDED:
         head, at, ap = f"🛬 {name} landed in {_city(d)}", leg.get("real_arr") or now, d
     else:
-        term = f", terminal {d['terminal']}" if d.get("terminal") else ""
-        head, at, ap = f"✅ {name} is at the gate in {_city(d)}{term}", now, d
+        head, at, ap = f"✅ {name} is at the gate in {_city(d)}", now, d
     msg = f"{head}\n{' · '.join(x for x in (sub, fmt_time(at, ap, home)) if x)}"
     if event == EV_TOOK_OFF:
         eta = leg.get("est_arr") or leg.get("sched_arr")
         if eta:
             msg += f"\nLands {fmt_time(eta, d, home)}{countdown(eta, now)}"
+    if event in (EV_LANDED, EV_ARRIVED_GATE) and _where(d):
+        msg += f"\n{_where(d)}"
     return msg
 
 
@@ -286,6 +294,8 @@ def tracking_message(number: str, legs: list[dict], who: str, now: float, home: 
     else:
         dep = first.get("est_dep") or first["sched_dep"]
         line = f"Departs {fmt_time(dep, first['origin'], home)}{countdown(dep, now)}"
+        if _where(first["origin"]):
+            line += f"\n{_where(first['origin'])}"
     return f"{head}\n{sub}\n{line}"
 
 

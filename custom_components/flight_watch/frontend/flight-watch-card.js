@@ -375,9 +375,11 @@ class FlightWatchCard extends HTMLElement {
     const al = l.airline ? `${esc(l.airline)} · ` : "";
     const depAct = l.real_dep || l.est_dep;
     const arrAct = l.real_arr || l.est_arr;
-    const term = l.destination.terminal ? ` · Terminal ${esc(l.destination.terminal)}` : "";
+    const spot = (a) => [a.terminal && `Terminal ${a.terminal}`, a.gate && `gate ${a.gate}`].filter(Boolean).join(" ");
+    const where = [!l.real_dep && spot(l.origin) && `From ${spot(l.origin)}`, spot(l.destination) && `To ${spot(l.destination)}`, l.destination.baggage && `Bags ${l.destination.baggage}`].filter(Boolean).join(" · ");
     return `
-        <div class="sub">${legStatus(l)} · ${al}${esc(delay(l))}${term}</div>
+        <div class="sub">${legStatus(l)} · ${al}${esc(delay(l))}</div>
+        ${where ? `<div class="sub">${esc(where)}</div>` : ""}
         <table>
           <tr><th></th><th>Scheduled</th><th>Actual / estimated</th></tr>
           <tr><td>Depart</td><td>${esc(when(l.sched_dep, l.origin, home, true, false))}</td><td>${esc(depAct ? when(depAct, l.origin, home) : "–")}</td></tr>

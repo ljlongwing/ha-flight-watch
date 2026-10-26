@@ -95,7 +95,11 @@ def test_messages():
     assert sub == "AA1 · JFK → LAX · 8:48 AM EDT (6:48 AM MDT)"
     assert lands.startswith("Lands ") and ", in 5" in lands
     assert core.leg_message("landed", leg, "", now, DENVER).startswith("🛬 AA1 landed in Los Angeles\nJFK → LAX · ")
+    assert core.leg_message("left_gate", leg, "Tony", now, DENVER).startswith("🚶 Tony left gate 2 in New York\n")
+    assert core.leg_message("arrived_gate", leg, "", now, DENVER).endswith("\nTerminal 4 · Gate 41 · Bags T4C2")
     assert core.removed_message("AA1", [leg], "") == "🛑 Stopped tracking AA1\nJFK → LAX"
+    early = {**leg, "real_dep": None}
+    assert core.tracking_message("AA1", [early], "", now, DENVER).endswith("\nTerminal 8 · Gate 2")
     assert core.tracking_message("WN1875", [], "", now, DENVER) == "📋 Tracking WN1875"
     assert core.tracking_message("WN1875", [], "Tony", now, DENVER) == "📋 Tracking Tony's flight\nWN1875"
 
