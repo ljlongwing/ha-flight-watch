@@ -79,9 +79,14 @@ function duration(legs) {
   return ` · ${hm(total)} total (${hm(layover)} layover${used.length > 2 ? "s" : ""})`;
 }
 
+// FR24 gives feet and knots; the integration's options pick what to show.
+let UNITS = { alt: "ft", speed: "kt" };
+const TO_UNIT = { ft: 1, m: 0.3048, kt: 1, mph: 1.15078, "km/h": 1.852 };
+const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} ${u}`;
+
 function legStatus(l) {
   if (l.real_arr) return "🛬 Landed";
-  if (l.live && l.real_dep) return `✈️ In air${l.alt ? ` · ${l.alt.toLocaleString()} ft` : ""}${l.speed ? ` · ${l.speed} kt` : ""}`;
+  if (l.live && l.real_dep) return `✈️ In air${l.alt ? ` · ${inUnit(l.alt, UNITS.alt)}` : ""}${l.speed ? ` · ${inUnit(l.speed, UNITS.speed)}` : ""}`;
   if (l.live) return "🚶 Left the gate";
   return "🕓 Scheduled";
 }
@@ -297,6 +302,7 @@ class FlightWatchCard extends HTMLElement {
     }
     const home = this._hass.config.time_zone;
     const a = st.attributes;
+    UNITS = a.units || UNITS;
     const now = [...(a.tracking || []), ...(a.done || [])];
 
     tracked.innerHTML = now.length

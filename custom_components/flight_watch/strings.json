@@ -7,7 +7,9 @@
         "data": {
           "notify_entities": "Send alerts to",
           "notify_events": "Alerts to send",
-          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)"
+          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)",
+          "altitude_unit": "Altitude unit",
+          "speed_unit": "Speed unit"
         },
         "data_description": {
           "notify_entities": "Any notify entity: Telegram, the mobile app, email and so on.",
@@ -26,7 +28,9 @@
         "data": {
           "notify_entities": "Send alerts to",
           "notify_events": "Alerts to send",
-          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)"
+          "aerodatabox_key": "AeroDataBox RapidAPI key (optional)",
+          "altitude_unit": "Altitude unit",
+          "speed_unit": "Speed unit"
         },
         "data_description": {
           "notify_entities": "Any notify entity: Telegram, the mobile app, email and so on.",
@@ -45,6 +49,19 @@
         "arrived_gate": "At the gate",
         "removed": "Stopped tracking",
         "problem": "Problems (not found, already landed)"
+      }
+    },
+    "altitude_unit": {
+      "options": {
+        "ft": "Feet (ft)",
+        "m": "Meters (m)"
+      }
+    },
+    "speed_unit": {
+      "options": {
+        "kt": "Knots (kt)",
+        "mph": "Miles per hour (mph)",
+        "km/h": "Kilometers per hour (km/h)"
       }
     }
   },

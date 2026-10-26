@@ -8,6 +8,7 @@ from homeassistant.const import UnitOfLength
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.location import distance
 
 from .const import DOMAIN, SIGNAL_UPDATE, STATE_TRACKING
 
@@ -55,6 +56,9 @@ class FlightPosition(GeolocationEvent):
         self._attr_name = e.get("who") or leg["number"]
         self._attr_latitude = leg["lat"]
         self._attr_longitude = leg["lon"]
+        # A changing state (km from origin) makes each position a "significant" history change, so the map's trail survives a page reload.
+        o = leg.get("origin") or {}
+        self._attr_distance = distance(o["lat"], o["lon"], leg["lat"], leg["lon"]) / 1000 if o.get("lat") is not None else None
         self._attr_extra_state_attributes = {
             "flight": leg["number"], "altitude": leg.get("alt"), "speed": leg.get("speed"), "heading": leg.get("heading"),
         }

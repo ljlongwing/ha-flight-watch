@@ -9,7 +9,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, SIGNAL_UPDATE, STATE_DONE, STATE_TRACKING, STATE_UPCOMING
+from .const import ALT_UNITS, CONF_ALT_UNIT, CONF_SPEED_UNIT, DOMAIN, SIGNAL_UPDATE, SPEED_UNITS, STATE_DONE, STATE_TRACKING, STATE_UPCOMING
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEntitiesCallback) -> None:
@@ -40,4 +40,5 @@ class FlightsSensor(SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        return self._fw.snapshot()
+        o = self._fw.options
+        return {**self._fw.snapshot(), "units": {"alt": o.get(CONF_ALT_UNIT, ALT_UNITS[0]), "speed": o.get(CONF_SPEED_UNIT, SPEED_UNITS[0])}}

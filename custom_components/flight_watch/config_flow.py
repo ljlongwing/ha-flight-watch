@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResu
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import ALL_EVENTS, CONF_ADB_KEY, CONF_EVENTS, CONF_NOTIFY, DOMAIN
+from .const import ALL_EVENTS, ALT_UNITS, CONF_ADB_KEY, CONF_ALT_UNIT, CONF_EVENTS, CONF_NOTIFY, CONF_SPEED_UNIT, DOMAIN, SPEED_UNITS
 
 
 def _schema(d: dict) -> vol.Schema:
@@ -17,6 +17,12 @@ def _schema(d: dict) -> vol.Schema:
         ),
         vol.Optional(CONF_EVENTS, default=d.get(CONF_EVENTS, ALL_EVENTS)): selector.SelectSelector(
             selector.SelectSelectorConfig(options=ALL_EVENTS, multiple=True, translation_key=CONF_EVENTS)
+        ),
+        vol.Optional(CONF_ALT_UNIT, default=d.get(CONF_ALT_UNIT, ALT_UNITS[0])): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=ALT_UNITS, translation_key=CONF_ALT_UNIT)
+        ),
+        vol.Optional(CONF_SPEED_UNIT, default=d.get(CONF_SPEED_UNIT, SPEED_UNITS[0])): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=SPEED_UNITS, translation_key=CONF_SPEED_UNIT)
         ),
         vol.Optional(CONF_ADB_KEY, description={"suggested_value": d.get(CONF_ADB_KEY)}): selector.TextSelector(
             selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
