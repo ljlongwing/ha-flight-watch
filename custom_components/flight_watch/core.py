@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
-from .airlines import airline_name
 from .const import EV_ARRIVED_GATE, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
 
 GATE_FALLBACK = 15 * 60  # call it 'at the gate' this long after landing if FR24 never says so
@@ -135,10 +134,14 @@ def merge_leg(old: dict, new: dict) -> dict:
     return out
 
 
+TAXI_KT = 5
+
+
 def leg_events(leg: dict, now: float) -> list[str]:
     """Events this leg has reached, in order (the caller sends only the ones not in leg['sent'])."""
     ev = []
-    if leg.get("live") or leg.get("real_dep") or leg.get("real_arr"):
+    # FR24 often goes live at the gate (transponder on while boarding), so wait for taxi speed.
+    if (leg.get("live") and (leg.get("speed") or 0) >= TAXI_KT) or leg.get("real_dep") or leg.get("real_arr"):
         ev.append(EV_LEFT_GATE)
     if leg.get("real_dep") or leg.get("real_arr"):
         ev.append(EV_TOOK_OFF)
@@ -209,9 +212,9 @@ def countdown(ts: float, now: float) -> str:
     if m <= 0:
         return ""
     if m < 60:
-        return f" · in {m} min"
+        return f", in {m} min"
     h = round(m / 30) / 2
-    return f" · in {int(h) if h == int(h) else h} hour{'s' if h != 1 else ''}"
+    return f", in {int(h) if h == int(h) else h} hour{'s' if h != 1 else ''}"
 
 
 def place(ap: dict) -> str:
@@ -231,45 +234,60 @@ def route(legs: list[dict]) -> str:
     return " → ".join(place(s) for s in stops)
 
 
-def full_number(number: str, airline: str | None) -> str:
-    al = airline or airline_name(number)
-    return f"{al} {number}" if al else number
+def _codes(legs: list[dict]) -> str:
+    """'MCO → LAX', chained like route() but with codes only."""
+    r = route(legs)
+    return " → ".join(x.rsplit("(", 1)[-1].rstrip(")") for x in r.split(" → ")) if r else ""
+
+
+def _sub(number: str, legs: list[dict], who: str) -> str:
+    """Second line: 'AA1496 · MCO → LAX' (the number leads the headline instead when there is no who)."""
+    return " · ".join(x for x in (number if who else "", _codes(legs)) if x)
+
+
+def _city(ap: dict) -> str:
+    return ap.get("city") or ap.get("iata") or "?"
 
 
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
-    num = full_number(leg["number"], leg.get("airline"))
-    name = f"{who}'s flight" if who else num
-    r = route([leg])
-    detail = f" ({num}, {r})" if who and r else (f" ({r})" if r else (f" ({num})" if who else ""))
+    name = who or leg["number"]
+    sub = _sub(leg["number"], [leg], who)
     o, d = leg["origin"], leg["destination"]
     if event == EV_LEFT_GATE:
-        return f"🚶 {name}{detail} left the gate at {fmt_time(now, o, home)}"
+        head, at, ap = f"🚶 {name} left the gate in {_city(o)}", now, o
+    elif event == EV_TOOK_OFF:
+        head, at, ap = f"🛫 {name} took off from {_city(o)}", leg.get("real_dep") or now, o
+    elif event == EV_LANDED:
+        head, at, ap = f"🛬 {name} landed in {_city(d)}", leg.get("real_arr") or now, d
+    else:
+        term = f", terminal {d['terminal']}" if d.get("terminal") else ""
+        head, at, ap = f"✅ {name} is at the gate in {_city(d)}{term}", now, d
+    msg = f"{head}\n{' · '.join(x for x in (sub, fmt_time(at, ap, home)) if x)}"
     if event == EV_TOOK_OFF:
         eta = leg.get("est_arr") or leg.get("sched_arr")
-        eta_s = f"{fmt_time(eta, d, home)}{countdown(eta, now)}" if eta else "unknown"
-        return f"🛫 {name}{detail} took off at {fmt_time(leg.get('real_dep') or now, o, home)}, ETA {eta_s}"
-    if event == EV_LANDED:
-        return f"🛬 {name}{detail} landed at {fmt_time(leg.get('real_arr') or now, d, home)}"
-    term = f", terminal {d['terminal']}" if d.get("terminal") else ""
-    return f"✅ {name}{detail} at the gate at {fmt_time(now, d, home)}{term}"
+        if eta:
+            msg += f"\nLands {fmt_time(eta, d, home)}{countdown(eta, now)}"
+    return msg
 
 
 def tracking_message(number: str, legs: list[dict], who: str, now: float, home: tzinfo) -> str:
-    num = full_number(number, legs[0].get("airline") if legs else None)
-    name = f"{who}'s flight {num}" if who else num
-    r = route(legs)
-    if not r:
-        return f"📋 Now tracking {name}"
+    head = f"📋 Tracking {who}'s flight" if who else f"📋 Tracking {number}"
+    sub = _sub(number, legs, who)
+    if not legs or not _codes(legs):
+        return f"{head}\n{sub}" if sub else head
     first = next((x for x in legs if not x.get("real_arr")), legs[0])
     if first.get("real_dep"):  # added while airborne
+        line = f"Took off {fmt_time(first['real_dep'], first['origin'], home)}"
         eta = first.get("est_arr") or first.get("sched_arr")
-        eta_s = f", ETA {fmt_time(eta, first['destination'], home)}{countdown(eta, now)}" if eta else ""
-        return f"📋 Now tracking {name} ({r}), took off at {fmt_time(first['real_dep'], first['origin'], home)}{eta_s}"
-    dep = first.get("est_dep") or first["sched_dep"]
-    return f"📋 Now tracking {name} ({r}), departs {fmt_time(dep, first['origin'], home)}{countdown(dep, now)}"
+        if eta:
+            line += f"\nLands {fmt_time(eta, first['destination'], home)}{countdown(eta, now)}"
+    else:
+        dep = first.get("est_dep") or first["sched_dep"]
+        line = f"Departs {fmt_time(dep, first['origin'], home)}{countdown(dep, now)}"
+    return f"{head}\n{sub}\n{line}"
 
 
 def removed_message(number: str, legs: list[dict], who: str) -> str:
-    num = full_number(number, legs[0].get("airline") if legs else None)
-    r = route(legs)
-    return f"🛑 Stopped tracking {(who + chr(39) + 's flight ' + num) if who else num}{f' ({r})' if r else ''}. No more alerts for it."
+    head = f"🛑 Stopped tracking {who}'s flight" if who else f"🛑 Stopped tracking {number}"
+    sub = _sub(number, legs, who)
+    return f"{head}\n{sub}" if sub else head

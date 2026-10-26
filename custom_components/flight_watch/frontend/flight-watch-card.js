@@ -140,7 +140,24 @@ class FlightWatchCard extends HTMLElement {
       this._minute = minute;
       this._render(st);
     }
-    if (this._map) this._map.hass = hass;
+    if (this._map) {
+      const cfg = this._mapConfig();
+      if (cfg.entities.join() !== this._mapEntities) this._setMapConfig(cfg);
+      this._map.hass = hass;
+    }
+  }
+
+  // The map card only draws trails (hours_to_show) for listed entities, not geo_location_sources ones.
+  _mapConfig() {
+    const s = this._hass.states;
+    const entities = Object.keys(s).filter((id) => id.startsWith("geo_location.") && s[id].attributes.source === "flight_watch").sort();
+    const aspect_ratio = this.querySelector(".map").clientWidth > 700 ? "2.5:1" : "1:1";
+    return { type: "map", entities, hours_to_show: 6, auto_fit: true, aspect_ratio };
+  }
+
+  _setMapConfig(cfg) {
+    this._mapEntities = cfg.entities.join();
+    this._map.setConfig(cfg);
   }
 
   _build() {
@@ -356,8 +373,9 @@ class FlightWatchCard extends HTMLElement {
     this._mapLoading = true;
     const helpers = await window.loadCardHelpers();
     // The map card defaults to square, which is a whole screen tall at panel width.
-    const aspect_ratio = box.clientWidth > 700 ? "2.5:1" : "1:1";
-    this._map = helpers.createCardElement({ type: "map", geo_location_sources: ["flight_watch"], hours_to_show: 6, auto_fit: true, aspect_ratio });
+    const cfg = this._mapConfig();
+    this._map = helpers.createCardElement(cfg);
+    this._mapEntities = cfg.entities.join();
     this._map.hass = this._hass;
     box.appendChild(this._map);
   }

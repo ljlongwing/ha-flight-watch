@@ -90,14 +90,20 @@ def test_messages():
     leg["origin"]["city"], leg["destination"]["city"] = "New York", "Los Angeles"
     now = leg["real_dep"]
     msg = core.leg_message("took_off", leg, "Tony", now, DENVER)
-    assert msg.startswith("🛫 Tony's flight (American Airlines AA1, New York (JFK) → Los Angeles (LAX)) took off at ")
-    assert "(" in msg.split("took off at ")[1] and "ETA" in msg and "· in 5" in msg
-    assert core.leg_message("landed", leg, "", now, DENVER).startswith(
-        "🛬 American Airlines AA1 (New York (JFK) → Los Angeles (LAX)) landed at")
-    legs = [leg]
-    assert core.removed_message("AA1", legs, "") == (
-        "🛑 Stopped tracking American Airlines AA1 (New York (JFK) → Los Angeles (LAX)). No more alerts for it.")
-    assert core.tracking_message("WN1875", [], "", now, DENVER) == "📋 Now tracking Southwest WN1875"
+    head, sub, lands = msg.split("\n")
+    assert head == "🛫 Tony took off from New York"
+    assert sub == "AA1 · JFK → LAX · 8:48 AM EDT (6:48 AM MDT)"
+    assert lands.startswith("Lands ") and ", in 5" in lands
+    assert core.leg_message("landed", leg, "", now, DENVER).startswith("🛬 AA1 landed in Los Angeles\nJFK → LAX · ")
+    assert core.removed_message("AA1", [leg], "") == "🛑 Stopped tracking AA1\nJFK → LAX"
+    assert core.tracking_message("WN1875", [], "", now, DENVER) == "📋 Tracking WN1875"
+    assert core.tracking_message("WN1875", [], "Tony", now, DENVER) == "📋 Tracking Tony's flight\nWN1875"
+
+
+def test_left_gate_waits_for_taxi():
+    leg = {"live": True, "speed": 0}
+    assert core.leg_events(leg, 0) == []
+    assert core.leg_events({**leg, "speed": 12}, 0) == ["left_gate"]
 
 
 def test_fmt_time_same_zone_has_no_parens():
@@ -107,9 +113,9 @@ def test_fmt_time_same_zone_has_no_parens():
 
 
 def test_countdown():
-    assert core.countdown(100 + 45 * 60, 100) == " · in 45 min"
-    assert core.countdown(100 + 90 * 60, 100) == " · in 1.5 hours"
-    assert core.countdown(100 + 60 * 60, 100) == " · in 1 hour"
+    assert core.countdown(100 + 45 * 60, 100) == ", in 45 min"
+    assert core.countdown(100 + 90 * 60, 100) == ", in 1.5 hours"
+    assert core.countdown(100 + 60 * 60, 100) == ", in 1 hour"
     assert core.countdown(50, 100) == ""
 
 
@@ -156,4 +162,4 @@ def test_adb_leg():
 def test_tracking_message_when_airborne():
     leg = core.leg_from_fr24(load("ch.json"))
     msg = core.tracking_message("AA1", [leg], "", leg["real_dep"] + 60, DENVER)
-    assert ", took off at 8:48 AM EDT (6:48 AM MDT), ETA " in msg
+    assert "\nTook off 8:48 AM EDT (6:48 AM MDT)\nLands " in msg

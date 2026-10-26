@@ -68,12 +68,6 @@ def airline_code(prefix: str) -> str:
     return p if len(p) == 2 else ""
 
 
-def airline_name(number: str) -> str:
-    """'WN2714' -> 'Southwest'; '' if the code isn't in the table."""
-    code = number.upper()[:2]
-    return next((name for c, name, _ in AIRLINES if c == code), "")
-
-
 def parse_flights(text: str) -> list[str]:
     """'Southwest 1570/1875', 'AS300, AA590', 'AA 2104 + 590' -> ['WN1570', 'WN1875'].
 
