@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import time
 import uuid
@@ -240,10 +241,10 @@ class FlightWatch:
                 "persistent_notification", "create", {"title": "Flight Watch", "message": message})
 
     def snapshot(self) -> dict:
-        """What the sensor exposes for the card."""
+        """What the sensor exposes for the card (a deep copy: HA only pushes state when it differs from the last one)."""
         out = {STATE_UPCOMING: [], STATE_TRACKING: [], STATE_DONE: []}
         for e in self.entries.values():
-            out[e["state"]].append({k: e.get(k) for k in ("id", "number", "date", "who", "legs", "source")})
+            out[e["state"]].append(copy.deepcopy({k: e.get(k) for k in ("id", "number", "date", "who", "legs", "source")}))
         for v in out.values():
             v.sort(key=lambda x: (x["date"], (x["legs"] or [{}])[0].get("sched_dep") or 1e12))
         return out
