@@ -253,8 +253,8 @@ def _city(ap: dict) -> str:
 
 
 def _where(d: dict) -> str:
-    """'Terminal B · Gate 159 · Bags T4C1', whichever FR24 has."""
-    return " · ".join(f"{label} {d[k]}" for label, k in (("Terminal", "terminal"), ("Gate", "gate"), ("Bags", "baggage")) if d.get(k))
+    """'Terminal B · Gate 159 · Baggage claim T4C1', whichever FR24 has."""
+    return " · ".join(f"{label} {d[k]}" for label, k in (("Terminal", "terminal"), ("Gate", "gate"), ("Baggage claim", "baggage")) if d.get(k))
 
 
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
