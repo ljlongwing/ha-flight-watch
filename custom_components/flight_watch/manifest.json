@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/ljlongwing/ha-flight-watch/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.14"
+  "version": "0.1.17"
 }

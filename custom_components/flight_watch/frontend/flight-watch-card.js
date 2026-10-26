@@ -151,7 +151,8 @@ class FlightWatchCard extends HTMLElement {
   _mapConfig() {
     const s = this._hass.states;
     const entities = Object.keys(s).filter((id) => id.startsWith("geo_location.") && s[id].attributes.source === "flight_watch").sort();
-    const aspect_ratio = this.querySelector(".map").clientWidth > 700 ? "2.5:1" : "1:1";
+    // Window, not box width: the box is display:none (width 0) when the config is rebuilt between flights.
+    const aspect_ratio = window.innerWidth > 900 ? "3:1" : "2:1";
     return { type: "map", entities, hours_to_show: 6, aspect_ratio };
   }
 
