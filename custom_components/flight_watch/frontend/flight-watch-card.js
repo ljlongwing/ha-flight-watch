@@ -255,6 +255,11 @@ class FlightWatchCard extends HTMLElement {
   }
 }
 
-customElements.define("flight-watch-card", FlightWatchCard);
-window.customCards = window.customCards || [];
-window.customCards.push({ type: "flight-watch-card", name: "Flight Watch", description: "Tracked and upcoming flights, live map, add/remove." });
+// HA 2026.10+ swaps window.customElements for a scoped registry during boot; this extra module can run
+// before that, so wait for the app (loadCardHelpers) or the card lands in the discarded registry.
+(function register(tries = 0) {
+  if (!window.loadCardHelpers && tries < 300) return setTimeout(register, 100, tries + 1);
+  if (!customElements.get("flight-watch-card")) customElements.define("flight-watch-card", FlightWatchCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: "flight-watch-card", name: "Flight Watch", description: "Tracked and upcoming flights, live map, add/remove." });
+})();
