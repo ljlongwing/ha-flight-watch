@@ -307,12 +307,12 @@ class FlightWatchCard extends HTMLElement {
     upcoming.innerHTML = up.length ? up.map((t) => this._tripHtml(t, home)).join("") : `<div class="empty">Nothing scheduled.</div>`;
 
     const flying = now.flatMap((e) => e.legs).filter((l) => l.live && l.lat != null);
-    this._fitPoints = flying.flatMap((l) => [l.origin, l, l.destination]).filter((p) => p && p.lat != null).map((p) => [p.lat, p.lon]);
+    this._fitPoints = flying.flatMap((l) => [l.origin, l]).filter((p) => p && p.lat != null).map((p) => [p.lat, p.lon]);
     this._renderMap(flying.length > 0);
     this._fit();
   }
 
-  // The map card's auto_fit zooms to the plane alone; frame the whole route (origin, plane, destination) instead.
+  // The map card's auto_fit zooms to the plane alone; frame the path flown so far (origin to plane) instead.
   _fit() {
     const map = this._map?.shadowRoot?.querySelector("ha-map");
     if (!map) {
