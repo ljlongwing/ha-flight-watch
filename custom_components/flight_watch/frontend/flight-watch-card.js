@@ -319,7 +319,8 @@ class FlightWatchCard extends HTMLElement {
     const a = st.attributes;
     this._colors = a.colors || {};
     UNITS = a.units || UNITS;
-    const now = [...(a.tracking || []), ...(a.done || [])];
+    // Departure order, so a trip keeps its spot when it lands.
+    const now = [...(a.tracking || []), ...(a.done || [])].sort((x, y) => (x.legs[0]?.sched_dep ?? 0) - (y.legs[0]?.sched_dep ?? 0));
 
     tracked.innerHTML = now.length
       ? trips(now).map((t) => this._activeHtml(t, home)).join("")

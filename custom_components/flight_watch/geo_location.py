@@ -1,4 +1,4 @@
-"""A map entity per airborne leg (source 'flight_watch'), for the map card."""
+"""A map entity per live leg (source 'flight_watch'), for the map card; landed legs stay until the entry is purged."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util.location import distance
 
-from .const import DOMAIN, SIGNAL_UPDATE, STATE_TRACKING
+from .const import DOMAIN, SIGNAL_UPDATE, STATE_UPCOMING
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEntitiesCallback) -> None:
@@ -21,7 +21,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, add: AddEnt
     def sync() -> None:
         live = {}
         for e in fw.entries.values():
-            if e["state"] != STATE_TRACKING:
+            if e["state"] == STATE_UPCOMING:
                 continue
             for leg in e["legs"]:
                 if leg.get("live") and leg.get("lat") is not None:
