@@ -141,7 +141,8 @@ class FlightWatchCard extends HTMLElement {
     const st = hass.states[this._config.entity];
     const key = st ? st.last_updated : "missing";
     const minute = Math.floor(Date.now() / 60000); // countdowns move even when data doesn't
-    if (key !== this._key || minute !== this._minute) {
+    // Re-rendering would close an open color picker.
+    if ((key !== this._key || minute !== this._minute) && !this.querySelector("input.clr:focus")) {
       this._key = key;
       this._minute = minute;
       this._render(st);
@@ -159,10 +160,10 @@ class FlightWatchCard extends HTMLElement {
     const entities = Object.keys(s).filter((id) => id.startsWith("geo_location.") && s[id].attributes.source === "flight_watch").sort();
     // Window, not box width: the box is display:none (width 0) when the config is rebuilt between flights.
     const aspect_ratio = window.innerWidth > 900 ? "3:1" : "2:1";
-    // colors: { Heather: pink } by who (or flight number); unlisted ones get the map's palette.
-    const colors = this._config.colors || {};
+    // Colors are picked per person on the card; others get the map's palette.
+    const colors = s[this._config.entity]?.attributes.colors || {};
     const list = entities.map((entity) => {
-      const color = colors[s[entity].attributes.friendly_name] || colors[s[entity].attributes.flight];
+      const color = colors[s[entity].attributes.friendly_name];
       return color ? { entity, color } : entity;
     });
     return { type: "map", entities: list, hours_to_show: 6, aspect_ratio };
@@ -188,6 +189,10 @@ class FlightWatchCard extends HTMLElement {
           .row { display: flex; align-items: flex-start; gap: 8px; }
           .row .main { flex: 1; min-width: 0; }
           .title { font-weight: 500; }
+          .clr { width: 18px; height: 18px; padding: 0; border: none; border-radius: 50%; background: none; cursor: pointer; vertical-align: -3px; margin-right: 6px; }
+          .clr::-webkit-color-swatch-wrapper { padding: 0; }
+          .clr::-webkit-color-swatch { border: none; border-radius: 50%; }
+          .clr::-moz-color-swatch { border: none; border-radius: 50%; }
           .sub { color: var(--secondary-text-color); font-size: .9em; white-space: pre-line; }
           table { width: 100%; border-collapse: collapse; font-size: .9em; margin-top: 6px; table-layout: fixed; }
           td:first-child, th:first-child { width: 72px; } /* same columns in every leg of a trip */
@@ -242,6 +247,9 @@ class FlightWatchCard extends HTMLElement {
     this.addEventListener("click", (ev) => {
       const b = ev.target.closest("button.x");
       if (b && confirm(b.dataset.ask)) this._hass.callService("flight_watch", "remove_flight", { id: b.dataset.ids.split(",") });
+    });
+    this.addEventListener("change", (ev) => {
+      if (ev.target.matches("input.clr")) this._hass.callService("flight_watch", "set_color", { who: ev.target.dataset.who, color: ev.target.value });
     });
   }
 
@@ -309,6 +317,7 @@ class FlightWatchCard extends HTMLElement {
     }
     const home = this._hass.config.time_zone;
     const a = st.attributes;
+    this._colors = a.colors || {};
     UNITS = a.units || UNITS;
     const now = [...(a.tracking || []), ...(a.done || [])];
 
@@ -336,6 +345,11 @@ class FlightWatchCard extends HTMLElement {
     if (this._fitPoints?.length) map.fitBounds(this._fitPoints, { zoom: 9, pad: 0.1 });
   }
 
+  // Map color for this person; grey until one is picked (the map then uses its own palette).
+  _swatch(who) {
+    return who ? `<input type="color" class="clr" title="Map color for ${esc(who)}" data-who="${esc(who)}" value="${esc(this._colors[who] || "#9e9e9e")}">` : "";
+  }
+
   // One box per trip; a connection gets a section per leg.
   _activeHtml(t, home) {
     const legs = t.entries.flatMap((e) => e.legs).sort((x, y) => x.sched_dep - y.sched_dep);
@@ -344,8 +358,8 @@ class FlightWatchCard extends HTMLElement {
     const ids = t.entries.map((e) => e.id).join(",");
     const leg = (l) => `${esc(l.number)} · ${esc(place(l.origin))} → ${esc(place(l.destination))}`;
     const head = legs.length === 1
-      ? `<div class="title">${t.who ? `${esc(t.who)}'s flight · ` : ""}${leg(legs[0])}</div>${this._legBody(legs[0], home)}`
-      : `<div class="title">${t.who ? `${esc(t.who)}'s trip · ` : "Trip · "}${esc(nums)}</div>
+      ? `<div class="title">${this._swatch(t.who)}${t.who ? `${esc(t.who)}'s flight · ` : ""}${leg(legs[0])}</div>${this._legBody(legs[0], home)}`
+      : `<div class="title">${this._swatch(t.who)}${t.who ? `${esc(t.who)}'s trip · ` : "Trip · "}${esc(nums)}</div>
          <div class="sub">${esc(route(legs))}${esc(duration(legs))}</div>
          ${legs.map((l) => `<div class="leg"><div class="title">${leg(l)}</div>${this._legBody(l, home)}</div>`).join("")}`;
     return `
@@ -383,7 +397,7 @@ class FlightWatchCard extends HTMLElement {
     const ids = t.entries.map((e) => e.id).join(",");
     return `
       <div class="flight"><div class="row"><div class="main">
-        <div class="title">${t.who ? `${esc(t.who)} · ` : ""}${esc(al)}${esc(nums)}</div>
+        <div class="title">${this._swatch(t.who)}${t.who ? `${esc(t.who)} · ` : ""}${esc(al)}${esc(nums)}</div>
         <div class="sub">${esc(d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }))} · ${rel}${r ? `\n${esc(r)}${esc(dep)}${esc(duration(legs))}${esc(src)}` : ""}${wait}</div>
       </div>
       <button class="x" title="Remove" data-ids="${esc(ids)}" data-ask="Remove this trip (${esc(nums)})?">✖</button>

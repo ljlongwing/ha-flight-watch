@@ -47,6 +47,7 @@ class FlightWatch:
         self.api = Api(async_get_clientsession(hass))
         self._store = Store(hass, 1, DOMAIN)
         self.entries: dict[str, dict] = {}
+        self.colors: dict[str, str] = {}  # who -> map color, picked on the card
         self._lock = asyncio.Lock()
         self._unsub = None
         self._again = False
@@ -56,6 +57,7 @@ class FlightWatch:
     async def async_start(self) -> None:
         data = await self._store.async_load() or {}
         self.entries = {e["id"]: e for e in data.get("entries", [])}
+        self.colors = data.get("colors", {})
         self._unsub = async_track_time_interval(self.hass, self._tick, timedelta(seconds=MIN))
         self.hass.async_create_task(self.async_tick())
 
@@ -65,7 +67,7 @@ class FlightWatch:
         await self._save()
 
     async def _save(self) -> None:
-        await self._store.async_save({"entries": list(self.entries.values())})
+        await self._store.async_save({"entries": list(self.entries.values()), "colors": self.colors})
 
     @callback
     def _tick(self, _now) -> None:
@@ -220,6 +222,14 @@ class FlightWatch:
         await self._save()
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
 
+    async def async_set_color(self, who: str, color: str) -> None:
+        if color:
+            self.colors[who] = color
+        else:
+            self.colors.pop(who, None)
+        await self._save()
+        async_dispatcher_send(self.hass, SIGNAL_UPDATE)
+
     # ---------- output ----------
 
     @property
@@ -247,4 +257,5 @@ class FlightWatch:
             out[e["state"]].append(copy.deepcopy({k: e.get(k) for k in ("id", "number", "date", "who", "legs", "source")}))
         for v in out.values():
             v.sort(key=lambda x: (x["date"], (x["legs"] or [{}])[0].get("sched_dep") or 1e12))
+        out["colors"] = dict(self.colors)
         return out

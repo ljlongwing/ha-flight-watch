@@ -122,6 +122,20 @@
           "description": "Departure date, local to the departure airport."
         }
       }
+    },
+    "set_color": {
+      "name": "Set map color",
+      "description": "Color of a person's plane and trail on the map.",
+      "fields": {
+        "who": {
+          "name": "Who",
+          "description": "The name used when adding their flights."
+        },
+        "color": {
+          "name": "Color",
+          "description": "Hex color like #e91e63. Empty goes back to the map's automatic color."
+        }
+      }
     }
   }
 }

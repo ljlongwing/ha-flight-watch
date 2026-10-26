@@ -29,6 +29,10 @@ ADD_SCHEMA = vol.Schema({
 })
 LOOKUP_SCHEMA = vol.Schema({vol.Required("flight"): cv.string, vol.Required("date"): cv.date})
 REMOVE_SCHEMA = vol.Schema({vol.Required("id"): vol.All(cv.ensure_list, [cv.string])})
+COLOR_SCHEMA = vol.Schema({
+    vol.Required("who"): vol.All(cv.string, vol.Strip, vol.Length(min=1)),
+    vol.Optional("color", default=""): vol.Any("", vol.Match(r"^#[0-9a-fA-F]{6}$")),
+})
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -61,7 +65,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     async def remove(call: ServiceCall) -> None:
         await fw().async_remove(call.data["id"])
 
+    async def set_color(call: ServiceCall) -> None:
+        await fw().async_set_color(call.data["who"], call.data["color"])
+
     hass.services.async_register(DOMAIN, "add_flight", add, ADD_SCHEMA)
+    hass.services.async_register(DOMAIN, "set_color", set_color, COLOR_SCHEMA)
     hass.services.async_register(DOMAIN, "remove_flight", remove, REMOVE_SCHEMA)
     hass.services.async_register(DOMAIN, "lookup_flight", lookup, LOOKUP_SCHEMA, supports_response=SupportsResponse.ONLY)
     return True

@@ -39,3 +39,14 @@ lookup_flight:
       required: true
       selector:
         date:
+set_color:
+  fields:
+    who:
+      required: true
+      example: "Heather"
+      selector:
+        text:
+    color:
+      example: "#e91e63"
+      selector:
+        text:

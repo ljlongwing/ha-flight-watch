@@ -28,9 +28,6 @@ type: custom:flight-watch-card
 title: Flights          # optional
 map: true               # optional, live map of airborne flights
 entity: sensor.flight_watch_tracked_flights  # optional
-colors:                 # optional, map marker/trail color by who (or flight number)
-  Heather: pink         # a theme color name (red, blue, deep-orange, ...) or any CSS color like "#e91e63"
-  Anthony: blue
 ```
 
 ## Settings
@@ -46,6 +43,7 @@ colors:                 # optional, map marker/trail color by who (or flight num
 - `flight_watch.add_flight`: `flight` (`AS300`, `Alaska 300`, `Southwest 1570/1875`), `date`, optional `who`, and optional `from`/`to` airport codes for a flight that makes several stops (several flights: `from` is the first, `to` the last). Without them, tracking starts where the person's earlier flight that day lands and stops before the route doubles back. The card asks when a flight has several legs.
 - `flight_watch.lookup_flight`: `flight`, `date`; returns every leg flown that day (response only).
 - `flight_watch.remove_flight`: `id` (from the sensor's attributes).
+- `flight_watch.set_color`: `who`, `color` (`#e91e63`; empty = automatic). The color dot by each name on the card sets it; it colors that person's plane and trail on the map.
 - Event `flight_watch_event` on every change: `type` (`tracking`, `left_gate`, `took_off`, `landed`,
   `arrived_gate`, `removed`, `problem`), `flight`, `date`, `who`, `message`, `leg`. Use it for your own automations.
 - `sensor.flight_watch_tracked_flights`: number of flights being tracked; attributes `tracking`, `upcoming`, `done`.
