@@ -112,7 +112,8 @@ class FlightWatchCard extends HTMLElement {
         <style>
           .fw { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
           .fw h2 { margin: 0; font-size: 1.25em; font-weight: 500; }
-          .tracked, .upcoming { display: flex; flex-direction: column; gap: 8px; }
+          .tracked, .upcoming { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 8px; }
+          .tracked > .empty, .upcoming > .empty { grid-column: 1 / -1; }
           .fw h3 { margin: 8px 0 0; font-size: 1em; font-weight: 500; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
           .flight { border: 1px solid var(--divider-color); border-radius: 12px; padding: 10px 12px; }
           .row { display: flex; align-items: flex-start; gap: 8px; }
@@ -129,6 +130,11 @@ class FlightWatchCard extends HTMLElement {
           form .wide { grid-column: 1 / -1; }
           form button { grid-column: 1 / -1; font: inherit; padding: 8px; border: none; border-radius: 8px; background: var(--primary-color); color: var(--text-primary-color, #fff); cursor: pointer; }
           .err { color: var(--error-color, #db4437); font-size: .9em; grid-column: 1 / -1; }
+          @media (min-width: 900px) {
+            form { grid-template-columns: 3fr 1fr 1fr auto; }
+            form .wide, form button { grid-column: auto; }
+            form button { padding: 8px 24px; }
+          }
         </style>
         <div class="fw">
           <h2></h2>
