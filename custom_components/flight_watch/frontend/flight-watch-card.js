@@ -152,7 +152,7 @@ class FlightWatchCard extends HTMLElement {
     const s = this._hass.states;
     const entities = Object.keys(s).filter((id) => id.startsWith("geo_location.") && s[id].attributes.source === "flight_watch").sort();
     const aspect_ratio = this.querySelector(".map").clientWidth > 700 ? "2.5:1" : "1:1";
-    return { type: "map", entities, hours_to_show: 6, auto_fit: true, aspect_ratio };
+    return { type: "map", entities, hours_to_show: 6, aspect_ratio };
   }
 
   _setMapConfig(cfg) {
@@ -305,7 +305,21 @@ class FlightWatchCard extends HTMLElement {
     const up = trips(a.upcoming || []);
     upcoming.innerHTML = up.length ? up.map((t) => this._tripHtml(t, home)).join("") : `<div class="empty">Nothing scheduled.</div>`;
 
-    this._renderMap(now.some((e) => e.legs.some((l) => l.live && l.lat != null)));
+    const flying = now.flatMap((e) => e.legs).filter((l) => l.live && l.lat != null);
+    this._fitPoints = flying.flatMap((l) => [l.origin, l, l.destination]).filter((p) => p && p.lat != null).map((p) => [p.lat, p.lon]);
+    this._renderMap(flying.length > 0);
+    this._fit();
+  }
+
+  // The map card's auto_fit zooms to the plane alone; frame the whole route (origin, plane, destination) instead.
+  _fit() {
+    const map = this._map?.shadowRoot?.querySelector("ha-map");
+    if (!map) {
+      if (this._map && !this._fitRetry) this._fitRetry = setTimeout(() => ((this._fitRetry = null), this._fit()), 500);
+      return;
+    }
+    // ha-map queues this until its engine loads, and pauses its own auto-fit afterwards.
+    if (this._fitPoints?.length) map.fitBounds(this._fitPoints, { zoom: 9, pad: 0.1 });
   }
 
   // One box per trip; a connection gets a section per leg.
@@ -378,6 +392,7 @@ class FlightWatchCard extends HTMLElement {
     this._mapEntities = cfg.entities.join();
     this._map.hass = this._hass;
     box.appendChild(this._map);
+    this._fit();
   }
 }
 

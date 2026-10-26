@@ -18,6 +18,8 @@ def _airport(a: dict | None) -> dict:
         "city": ((a.get("position") or {}).get("region") or {}).get("city"),
         "tz": tz.get("name"),
         "offset": tz.get("offset"),
+        "lat": (a.get("position") or {}).get("latitude"),
+        "lon": (a.get("position") or {}).get("longitude"),
     }
 
 
