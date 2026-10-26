@@ -85,6 +85,7 @@ const TO_UNIT = { ft: 1, m: 0.3048, kt: 1, mph: 1.15078, "km/h": 1.852 };
 const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} ${u}`;
 
 function legStatus(l) {
+  if (l.sent?.includes("arrived_gate")) return "🧳 At the gate";
   if (l.real_arr) return "🛬 Landed";
   if (l.live && l.real_dep) return `✈️ In air${l.alt ? ` · ${inUnit(l.alt, UNITS.alt)}` : ""}${l.speed ? ` · ${inUnit(l.speed, UNITS.speed)}` : ""}`;
   if (l.live) return "🚶 Left the gate";
@@ -186,6 +187,7 @@ class FlightWatchCard extends HTMLElement {
           .tracked > .empty, .upcoming > .empty { grid-column: 1 / -1; }
           .fw h3 { margin: 8px 0 0; font-size: 1em; font-weight: 500; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: .04em; }
           .flight { border: 1px solid var(--divider-color); border-radius: 12px; padding: 10px 12px; }
+          .flight.done { opacity: 0.6; }
           .row { display: flex; align-items: flex-start; gap: 8px; }
           .row .main { flex: 1; min-width: 0; }
           .title { font-weight: 500; }
@@ -320,7 +322,7 @@ class FlightWatchCard extends HTMLElement {
     this._colors = a.colors || {};
     UNITS = a.units || UNITS;
     // Departure order, so a trip keeps its spot when it lands.
-    const now = [...(a.tracking || []), ...(a.done || [])].sort((x, y) => (x.legs[0]?.sched_dep ?? 0) - (y.legs[0]?.sched_dep ?? 0));
+    const now = [...(a.tracking || []), ...(a.done || []).map((e) => ({ ...e, done: true }))].sort((x, y) => (x.legs[0]?.sched_dep ?? 0) - (y.legs[0]?.sched_dep ?? 0));
 
     tracked.innerHTML = now.length
       ? trips(now).map((t) => this._activeHtml(t, home)).join("")
@@ -364,7 +366,7 @@ class FlightWatchCard extends HTMLElement {
          <div class="sub">${esc(route(legs))}${esc(duration(legs))}</div>
          ${legs.map((l) => `<div class="leg"><div class="title">${leg(l)}</div>${this._legBody(l, home)}</div>`).join("")}`;
     return `
-      <div class="flight"><div class="row"><div class="main">${head}</div>
+      <div class="flight${t.entries.every((e) => e.done) ? " done" : ""}"><div class="row"><div class="main">${head}</div>
       <button class="x" title="Stop tracking" data-ids="${esc(ids)}" data-ask="Stop tracking ${esc(nums)}? Its alerts stop too.">✖</button>
       </div></div>`;
   }
