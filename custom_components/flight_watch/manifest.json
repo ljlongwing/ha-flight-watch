@@ -1,7 +1,6 @@
 {
   "domain": "flight_watch",
   "name": "Flight Watch",
-  "categories": ["vehicles_transport.flights"],
   "codeowners": ["@ljlongwing"],
   "config_flow": true,
   "dependencies": ["frontend", "http"],
@@ -11,5 +10,5 @@
   "issue_tracker": "https://github.com/ljlongwing/ha-flight-watch/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.1.30"
+  "version": "0.1.29"
 }
