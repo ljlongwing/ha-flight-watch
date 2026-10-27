@@ -100,7 +100,7 @@ function delay(l) {
   const [act, sched] = arr && l.sched_arr ? [arr, l.sched_arr] : [l.est_dep, l.sched_dep];
   if (!act || !sched) return "";
   const d = Math.round((act - sched) / 60);
-  return d > 10 ? `⚠️ ${d} min late` : d < -5 ? `✅ ${-d} min early` : "✅ On time";
+  return d > 10 ? `⚠️ ${d >= 60 ? hm(d * 60) : `${d} min`} late` : d < -5 ? `✅ ${-d} min early` : "✅ On time";
 }
 
 // Trips = same who + same day (no who = on its own).
