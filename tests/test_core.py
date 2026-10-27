@@ -246,5 +246,4 @@ def test_diversion_continuation():
     assert not core.leg_finished(div, day[0]["sched_dep"] + 3600)  # waits for the continuation
     assert core.leg_finished({**div, "continued": True}, day[0]["sched_dep"] + 3600)
     picked = core.pick_legs(day)
-    assert "
-Departs 8:36 AM MDT" in core.tracking_message("UA5089", picked, "", c["sched_dep"], DENVER)
+    assert "\nDeparts 8:36 AM MDT" in core.tracking_message("UA5089", picked, "", c["sched_dep"], DENVER)
