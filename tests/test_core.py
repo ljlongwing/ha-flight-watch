@@ -167,3 +167,26 @@ def test_tracking_message_when_airborne():
     leg = core.leg_from_fr24(load("ch.json"))
     msg = core.tracking_message("AA1", [leg], "", leg["real_dep"] + 60, DENVER)
     assert "\nTook off 8:48 AM EDT (6:48 AM MDT)\nLands " in msg
+
+
+def test_delay_alerts():
+    s = 1792935900  # AA1 Oct 25, 'Estimated dep 10:17' in the list = 32 min late
+    leg = core.legs_on_date(core.legs_from_list(load("aa1.json")), date(2026, 10, 25))[0]
+    assert core.dep_delay(leg) == 32 and core.delay_change(leg) == 32
+    step = lambda d, last: core.delay_change({**leg, "est_dep": s + d * 60, "delay_sent": last})  # noqa: E731
+    assert step(10, 0) is None  # under 15: not news
+    assert step(40, 32) is None  # moved < 15
+    assert step(50, 32) == 50  # worse by 18
+    assert step(5, 32) == 5  # back on schedule
+    assert step(5, 0) is None
+    assert core.delay_change({**leg, "real_dep": s + 1}) is None  # in the air: landing ETA covers it
+    assert core.delay_change({**leg, "sent": ["left_gate"]}) is None  # taxiing
+    leg["origin"]["city"] = "New York"
+    msg = core.delay_message("AA1", leg, "Tony", s - 3600, DENVER)
+    assert msg.split("\n")[0] == "⏰ Tony's flight is delayed 32 min"
+    assert msg.split("\n")[2].startswith("Departs 10:17 AM EDT (8:17 AM MDT), in 1.5 hours")
+    assert msg.endswith("\nScheduled 9:45 AM EDT (7:45 AM MDT)")
+    ok = core.delay_message("AA1", {**leg, "est_dep": s}, "", s - 3600, DENVER)
+    assert ok.startswith("✅ AA1 is back on schedule\nJFK → LAX\nDeparts 9:45 AM EDT") and "Scheduled" not in ok
+    assert "(delayed 32 min)" in core.tracking_message("AA1", [leg], "", s - 3600, DENVER)
+    assert core.mins(80) == "1 h 20 min" and core.mins(60) == "1 h" and core.mins(0) == "0 min"

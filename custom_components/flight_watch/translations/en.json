@@ -43,6 +43,7 @@
     "notify_events": {
       "options": {
         "tracking": "Now tracking (on the day of the flight)",
+        "delayed": "Delayed (departure 15+ min late, or changed again)",
         "left_gate": "Left the gate",
         "took_off": "Took off",
         "landed": "Landed",

@@ -20,16 +20,17 @@ from homeassistant.util import dt as dt_util
 from . import core
 from .api import Api, RateLimited
 from .const import (
+    ALL_EVENTS,
     CONF_ADB_KEY,
     CONF_EVENTS,
     CONF_NOTIFY,
     DOMAIN,
+    EV_DELAYED,
     EV_PROBLEM,
     EV_REMOVED,
     EV_TRACKING,
     EVENT,
     FR24_WINDOW_DAYS,
-    LEG_EVENTS,
     SIGNAL_UPDATE,
     STATE_DONE,
     STATE_TRACKING,
@@ -139,8 +140,9 @@ class FlightWatch:
             self.entries.pop(e["id"], None)
             await self._notify(EV_PROBLEM, e, f"⚠️ Not tracking {e['number']}: its {day:%a %b} {day.day} flight has already landed")
             return
-        for leg in legs:  # what already happened isn't news
+        for leg in legs:  # what already happened isn't news (the tracking message mentions a delay)
             leg["sent"] = core.leg_events(leg, now)
+            leg["delay_sent"] = core.dep_delay(leg)
         e.update(legs=legs, source="fr24", state=STATE_TRACKING, next_check=now)
         await self._notify(EV_TRACKING, e, core.tracking_message(e["number"], legs, e.get("who", ""), now, self._home))
 
@@ -164,6 +166,10 @@ class FlightWatch:
             if new:
                 legs[i] = core.merge_leg(old, new)
         for x in legs:
+            d = core.delay_change(x)
+            if d is not None:
+                x["delay_sent"] = d
+                await self._notify(EV_DELAYED, e, core.delay_message(x["number"], x, e.get("who", ""), now, self._home), x)
             for ev in core.leg_events(x, now):
                 if ev not in x["sent"]:
                     x["sent"].append(ev)
@@ -241,7 +247,7 @@ class FlightWatch:
             "type": event, "id": e["id"], "flight": e["number"], "date": e["date"], "who": e.get("who", ""),
             "message": message, "leg": {k: v for k, v in (leg or {}).items() if k != "sent"},
         })
-        if event not in self.options.get(CONF_EVENTS, [EV_TRACKING, *LEG_EVENTS, EV_REMOVED, EV_PROBLEM]):
+        if event not in self.options.get(CONF_EVENTS, ALL_EVENTS):
             return
         targets = self.options.get(CONF_NOTIFY) or []
         if targets:

@@ -94,8 +94,9 @@ function legStatus(l) {
 
 function delay(l) {
   const arr = l.real_arr || l.est_arr;
-  if (!arr || !l.sched_arr) return "";
-  const d = Math.round((arr - l.sched_arr) / 60);
+  const [act, sched] = arr && l.sched_arr ? [arr, l.sched_arr] : [l.est_dep, l.sched_dep];
+  if (!act || !sched) return "";
+  const d = Math.round((act - sched) / 60);
   return d > 10 ? `⚠️ ${d} min late` : d < -5 ? `✅ ${-d} min early` : "✅ On time";
 }
 

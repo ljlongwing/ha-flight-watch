@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from .const import EV_ARRIVED_GATE, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
 
 GATE_FALLBACK = 15 * 60  # call it 'at the gate' this long after landing if FR24 never says so
+DELAY_STEP = 15  # minutes: late enough to alert, and how far the estimate must move to alert again
 
 
 def _airport(a: dict | None) -> dict:
@@ -155,6 +156,23 @@ def leg_events(leg: dict, now: float) -> list[str]:
     return ev
 
 
+def dep_delay(leg: dict) -> int:
+    """Minutes the estimated departure is past the schedule (0 without an estimate)."""
+    est, sched = leg.get("est_dep"), leg.get("sched_dep")
+    return round((est - sched) / 60) if est and sched else 0
+
+
+def delay_change(leg: dict) -> int | None:
+    """The new delay when it is worth an alert (before takeoff only), else None.
+
+    Alerts once 15+ min late, again whenever the estimate moves 15+ min from the last alert,
+    and once more if it comes back under 15 (back on schedule)."""
+    if leg.get("real_dep") or leg.get("real_arr") or EV_LEFT_GATE in leg.get("sent", []):
+        return None
+    d, last = dep_delay(leg), leg.get("delay_sent", 0)
+    return d if abs(d - last) >= DELAY_STEP and max(d, last) >= DELAY_STEP else None
+
+
 def leg_finished(leg: dict, now: float) -> bool:
     """At the gate, or long past its arrival with no word from FR24."""
     end = leg.get("real_arr") or leg.get("est_arr") or leg.get("sched_arr") or leg.get("sched_dep") or 0
@@ -257,6 +275,24 @@ def _where(d: dict) -> str:
     return " · ".join(f"{label} {d[k]}" for label, k in (("Terminal", "terminal"), ("Gate", "gate"), ("Baggage claim", "baggage")) if d.get(k))
 
 
+def mins(m: int) -> str:
+    """'45 min', '1 h 20 min'."""
+    h, m = divmod(abs(m), 60)
+    return " ".join(x for x in (f"{h} h" if h else "", f"{m} min" if m or not h else "") if x)
+
+
+def delay_message(number: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
+    name = f"{who}'s flight" if who else number
+    d = dep_delay(leg)
+    head = f"⏰ {name} is delayed {mins(d)}" if d >= DELAY_STEP else f"✅ {name} is back on schedule"
+    o = leg["origin"]
+    dep = leg.get("est_dep") or leg["sched_dep"]
+    lines = [head, _sub(number, [leg], who), f"Departs {fmt_time(dep, o, home)}{countdown(dep, now)}"]
+    if dep != leg["sched_dep"]:
+        lines.append(f"Scheduled {fmt_time(leg['sched_dep'], o, home)}")
+    return "\n".join(x for x in lines if x)
+
+
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
     name = who or leg["number"]
     sub = _sub(leg["number"], [leg], who)
@@ -294,6 +330,8 @@ def tracking_message(number: str, legs: list[dict], who: str, now: float, home: 
     else:
         dep = first.get("est_dep") or first["sched_dep"]
         line = f"Departs {fmt_time(dep, first['origin'], home)}{countdown(dep, now)}"
+        if dep_delay(first) >= DELAY_STEP:
+            line += f" (delayed {mins(dep_delay(first))})"
         if _where(first["origin"]):
             line += f"\n{_where(first['origin'])}"
     return f"{head}\n{sub}\n{line}"
