@@ -204,3 +204,29 @@ def test_canceled():
     leg["origin"]["city"] = "New York"
     msg = core.leg_message("canceled", leg, "Tony", 0, DENVER)
     assert msg.startswith("❌ Tony's flight is canceled\nAA1 · JFK → LAX · was ") and "\n" not in msg.split("\n", 1)[1]
+
+
+def test_diverted():
+    # UA5089 COD→DEN diverted to Laramie on 2026-10-27, as flight/list.json gave it
+    leg = core.leg_from_fr24(load("diverted.json"))
+    assert leg["diverted"] == "LAR" and leg["diverted_to"]["city"] == "Laramie" and not leg["real_arr"]
+    now = leg["sched_arr"] + 600
+    assert core.leg_events(leg, now) == ["left_gate", "took_off", "diverted"]
+    assert core.leg_finished({**leg, "sent": ["diverted"]}, now)
+    assert not core.leg_finished({**leg, "sent": ["diverted"], "live": True}, now)  # still flying there
+    assert core.leg_message("diverted", leg, "Tony", now, DENVER) == "↪️ Tony's flight diverted to Laramie (LAR)\nUA5089 · COD → DEN"
+    assert core.leg_message("diverted", leg, "", now, DENVER) == "↪️ UA5089 diverted to Laramie (LAR)\nCOD → DEN"
+    assert not core.leg_from_fr24(load("ch.json"))["diverted"]
+
+
+def test_schedule_change():
+    leg = core.leg_from_fr24(load("ch.json"))
+    leg["origin"]["city"] = "New York"
+    old = core.schedule_of([leg])[0]
+    assert not core.schedule_moved(old, core.schedule_of([{**leg, "sched_dep": leg["sched_dep"] + 240}])[0])  # 4 min
+    later = {**leg, "sched_dep": leg["sched_dep"] + 1800, "sched_arr": leg["sched_arr"] + 1800}
+    assert core.schedule_moved(old, core.schedule_of([later])[0])
+    assert not core.schedule_moved(old, ["EWR", *core.schedule_of([later])[0][1:]])  # a different leg
+    msg = core.schedule_message("AA1", later, old, "Tony", 0, DENVER).split("\n")
+    assert msg[0] == "🗓️ Tony's flight has a new schedule" and msg[1] == "AA1 · JFK → LAX"
+    assert msg[2].startswith("Departs ") and msg[2].endswith(", was 8:29 AM") and msg[3].startswith("Lands ")

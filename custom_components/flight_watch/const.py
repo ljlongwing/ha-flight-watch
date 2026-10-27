@@ -16,6 +16,8 @@ SPEED_UNITS = ["kt", "mph", "kmh"]
 EV_TRACKING = "tracking"
 EV_DELAYED = "delayed"  # departure estimate moved (before takeoff)
 EV_CANCELED = "canceled"
+EV_DIVERTED = "diverted"
+EV_SCHEDULE = "schedule_changed"  # the airline moved the scheduled times
 EV_LEFT_GATE = "left_gate"
 EV_TOOK_OFF = "took_off"
 EV_LANDED = "landed"
@@ -23,7 +25,7 @@ EV_ARRIVED_GATE = "arrived_gate"
 EV_REMOVED = "removed"
 EV_PROBLEM = "problem"  # not found on that date / already landed
 LEG_EVENTS = [EV_LEFT_GATE, EV_TOOK_OFF, EV_LANDED, EV_ARRIVED_GATE]
-ALL_EVENTS = [EV_TRACKING, EV_DELAYED, EV_CANCELED, *LEG_EVENTS, EV_REMOVED, EV_PROBLEM]
+ALL_EVENTS = [EV_TRACKING, EV_SCHEDULE, EV_DELAYED, EV_CANCELED, *LEG_EVENTS, EV_DIVERTED, EV_REMOVED, EV_PROBLEM]
 
 STATE_UPCOMING = "upcoming"
 STATE_TRACKING = "tracking"

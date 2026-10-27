@@ -1,0 +1,171 @@
+{
+ "identification": {
+  "id": "424fcc20",
+  "row": 5880874933,
+  "number": {
+   "default": "UA5089",
+   "alternative": "OO5089"
+  },
+  "callsign": "SKW5089",
+  "codeshare": null
+ },
+ "status": {
+  "live": false,
+  "text": "Diverted to LAR",
+  "icon": "red",
+  "estimated": null,
+  "ambiguous": false,
+  "generic": {
+   "status": {
+    "text": "diverted",
+    "type": "arrival",
+    "color": "red",
+    "diverted": "LAR"
+   },
+   "eventTime": {
+    "utc": null,
+    "local": null
+   }
+  }
+ },
+ "aircraft": {
+  "model": {
+   "code": "CRJ2",
+   "text": "Mitsubishi CRJ-200LR"
+  },
+  "registration": "N932SW",
+  "country": {
+   "id": 236,
+   "name": "United States",
+   "alpha2": "US",
+   "alpha3": "USA"
+  },
+  "hex": "ACEEBC",
+  "restricted": false,
+  "serialNo": null,
+  "age": {
+   "availability": true
+  },
+  "availability": {
+   "serialNo": true,
+   "age": true
+  }
+ },
+ "owner": {
+  "name": "SkyWest Airlines",
+  "code": {
+   "iata": "OO",
+   "icao": "SKW"
+  }
+ },
+ "airline": {
+  "name": "United Express",
+  "code": {
+   "iata": "UA",
+   "icao": "UAL"
+  },
+  "short": "United Airlines"
+ },
+ "airport": {
+  "origin": {
+   "name": "Cody Yellowstone Regional Airport",
+   "code": {
+    "iata": "COD",
+    "icao": "KCOD"
+   },
+   "position": {
+    "latitude": 44.52,
+    "longitude": -109.019997,
+    "country": {
+     "name": "United States",
+     "code": "US",
+     "id": 236
+    },
+    "region": {
+     "city": "Cody"
+    }
+   },
+   "timezone": {
+    "name": "America/Denver",
+    "offset": -21600,
+    "abbr": "MDT",
+    "abbrName": "Mountain Daylight Time",
+    "isDst": true
+   },
+   "visible": true
+  },
+  "destination": {
+   "name": "Denver International Airport",
+   "code": {
+    "iata": "DEN",
+    "icao": "KDEN"
+   },
+   "position": {
+    "latitude": 39.858784,
+    "longitude": -104.673882,
+    "country": {
+     "name": "United States",
+     "code": "US",
+     "id": 236
+    },
+    "region": {
+     "city": "Denver"
+    }
+   },
+   "timezone": {
+    "name": "America/Denver",
+    "offset": -21600,
+    "abbr": "MDT",
+    "abbrName": "Mountain Daylight Time",
+    "isDst": true
+   },
+   "visible": true
+  },
+  "real": {
+   "name": "Laramie Regional Airport",
+   "code": {
+    "iata": "LAR",
+    "icao": "KLAR"
+   },
+   "position": {
+    "latitude": 41.31361,
+    "longitude": -105.673058,
+    "country": {
+     "name": "United States",
+     "code": "US",
+     "id": 236
+    },
+    "region": {
+     "city": "Laramie"
+    }
+   },
+   "timezone": {
+    "name": "America/Denver",
+    "offset": -21600,
+    "abbr": "MDT",
+    "abbrName": "Mountain Daylight Time",
+    "isDst": true
+   },
+   "visible": true
+  }
+ },
+ "time": {
+  "scheduled": {
+   "departure": 1793098800,
+   "arrival": 1793106000
+  },
+  "real": {
+   "departure": 1793100065,
+   "arrival": null
+  },
+  "estimated": {
+   "departure": null,
+   "arrival": null
+  },
+  "other": {
+   "eta": null,
+   "updated": 1793106103,
+   "duration": null
+  }
+ }
+}

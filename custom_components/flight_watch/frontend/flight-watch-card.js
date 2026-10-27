@@ -86,6 +86,7 @@ const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} 
 
 function legStatus(l) {
   if (l.canceled && !l.real_dep) return "❌ Canceled";
+  if (l.diverted) return `↪️ Diverted to ${esc(l.diverted_to?.city ? `${l.diverted_to.city} (${l.diverted})` : l.diverted)}`;
   if (l.sent?.includes("arrived_gate")) return "🧳 At the gate";
   if (l.real_arr) return "🛬 Landed";
   if (l.live && l.real_dep) return `✈️ In air${l.alt ? ` · ${inUnit(l.alt, UNITS.alt)}` : ""}${l.speed ? ` · ${inUnit(l.speed, UNITS.speed)}` : ""}`;

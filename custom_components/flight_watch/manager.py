@@ -27,8 +27,10 @@ from .const import (
     DOMAIN,
     EV_CANCELED,
     EV_DELAYED,
+    EV_DIVERTED,
     EV_PROBLEM,
     EV_REMOVED,
+    EV_SCHEDULE,
     EV_TRACKING,
     EVENT,
     FR24_WINDOW_DAYS,
@@ -117,6 +119,7 @@ class FlightWatch:
         if day <= today + timedelta(days=FR24_WINDOW_DAYS):
             legs = self._pick(e, core.legs_on_date(core.legs_from_list(await self.api.flight_list(e["number"])), day))
             if legs:
+                await self._check_schedule(e, legs, now)
                 e["legs"], e["source"] = legs, "fr24"
         elif self.options.get(CONF_ADB_KEY) and e.get("source") != "fr24" and now - e.get("adb_checked", 0) > 7 * DAY:
             e["adb_checked"] = now
@@ -142,8 +145,9 @@ class FlightWatch:
             await self._notify(EV_PROBLEM, e, f"⚠️ Not tracking {e['number']}: its {day:%a %b} {day.day} flight has already landed")
             return
         for leg in legs:  # what already happened isn't news (the tracking message mentions a delay; a cancel still alerts)
-            leg["sent"] = [ev for ev in core.leg_events(leg, now) if ev != EV_CANCELED]
+            leg["sent"] = [ev for ev in core.leg_events(leg, now) if ev not in (EV_CANCELED, EV_DIVERTED)]
             leg["delay_sent"] = core.dep_delay(leg)
+        await self._check_schedule(e, legs, now)
         e.update(legs=legs, source="fr24", state=STATE_TRACKING, next_check=now)
         await self._notify(EV_TRACKING, e, core.tracking_message(e["number"], legs, e.get("who", ""), now, self._home))
 
@@ -166,6 +170,7 @@ class FlightWatch:
             new = next((n for n in fresh if core.same_leg(old, n)), None)
             if new:
                 legs[i] = core.merge_leg(old, new)
+        await self._check_schedule(e, legs, now)
         for x in legs:
             d = core.delay_change(x)
             if d is not None:
@@ -182,6 +187,17 @@ class FlightWatch:
             e["next_check"] = now + (MIN if leg.get("fr24_id") else 2 * MIN)
         else:
             e["next_check"] = now + 15 * MIN
+
+    async def _check_schedule(self, e: dict, legs: list[dict], now: float) -> None:
+        """Alert when the airline moves a leg's times. FR24 data only: AeroDataBox vs FR24 differences aren't news."""
+        old, new = e.get("sched"), core.schedule_of(legs)
+        e["sched"] = new
+        if not old or len(old) != len(new):
+            return
+        for leg, o, n in zip(legs, old, new):
+            if core.schedule_moved(o, n):
+                await self._notify(EV_SCHEDULE, e, core.schedule_message(
+                    leg["number"], leg, o, e.get("who", ""), now, self._home), leg)
 
     # ---------- services ----------
 

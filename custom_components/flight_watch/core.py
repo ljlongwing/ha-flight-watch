@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
-from .const import EV_ARRIVED_GATE, EV_CANCELED, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
+from .const import EV_ARRIVED_GATE, EV_CANCELED, EV_DIVERTED, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
 
 GATE_FALLBACK = 15 * 60  # call it 'at the gate' this long after landing if FR24 never says so
 DELAY_STEP = 15  # minutes: late enough to alert, and how far the estimate must move to alert again
+SCHEDULE_STEP = 5  # minutes a scheduled time must move to count as a new schedule
 
 
 def _airport(a: dict | None) -> dict:
@@ -53,8 +54,11 @@ def leg_from_fr24(f: dict) -> dict:
         "live": bool(status.get("live")),
         "status": status.get("text"),
         "canceled": ((status.get("generic") or {}).get("status") or {}).get("text") == "canceled",
+        "diverted": ((status.get("generic") or {}).get("status") or {}).get("diverted"),  # IATA code it went to
         **_times(f.get("time") or {}),
     }
+    if leg["diverted"]:
+        leg["diverted_to"] = _airport(ap.get("real")) if ap.get("real") else {"iata": leg["diverted"]}
     for k in ("origin", "destination"):
         info = (ap.get(k) or {}).get("info") or {}
         leg[k].update(terminal=info.get("terminal"), gate=info.get("gate"), baggage=info.get("baggage"))
@@ -152,6 +156,8 @@ def leg_events(leg: dict, now: float) -> list[str]:
         ev.append(EV_LEFT_GATE)
     if leg.get("real_dep") or leg.get("real_arr"):
         ev.append(EV_TOOK_OFF)
+    if leg.get("diverted"):  # FR24 gives no landing time; 'landed in <destination>' would be wrong
+        return [*ev, EV_DIVERTED]
     if leg.get("real_arr"):
         ev.append(EV_LANDED)
         if not leg.get("live") or now - leg["real_arr"] > GATE_FALLBACK:
@@ -176,10 +182,22 @@ def delay_change(leg: dict) -> int | None:
     return d if abs(d - last) >= DELAY_STEP and max(d, last) >= DELAY_STEP else None
 
 
+def schedule_of(legs: list[dict]) -> list[list]:
+    """What schedule_moved compares: [origin, sched_dep, sched_arr] per leg."""
+    return [[x["origin"].get("iata"), x.get("sched_dep"), x.get("sched_arr")] for x in legs]
+
+
+def schedule_moved(old: list, new: list) -> bool:
+    """Same leg (origin), but a scheduled time moved SCHEDULE_STEP+ min."""
+    return old[0] == new[0] and any(a and b and abs(b - a) >= SCHEDULE_STEP * 60 for a, b in zip(old[1:], new[1:]))
+
+
 def leg_finished(leg: dict, now: float) -> bool:
     """At the gate, or long past its arrival with no word from FR24."""
     end = leg.get("real_arr") or leg.get("est_arr") or leg.get("sched_arr") or leg.get("sched_dep") or 0
     sent = leg.get("sent", [])
+    if EV_DIVERTED in sent and not leg.get("live"):
+        return True
     return EV_ARRIVED_GATE in sent or EV_CANCELED in sent or now > end + 12 * 3600
 
 
@@ -297,6 +315,17 @@ def delay_message(number: str, leg: dict, who: str, now: float, home: tzinfo) ->
     return "\n".join(x for x in lines if x)
 
 
+def schedule_message(number: str, leg: dict, old: list, who: str, now: float, home: tzinfo) -> str:
+    name = f"{who}'s flight" if who else number
+    lines = [f"🗓️ {name} has a new schedule", _sub(number, [leg], who)]
+    for label, ts, was, ap in (("Departs", leg.get("sched_dep"), old[1], leg["origin"]),
+                               ("Lands", leg.get("sched_arr"), old[2], leg["destination"])):
+        if ts:
+            moved = was and abs(ts - was) >= SCHEDULE_STEP * 60
+            lines.append(f"{label} {fmt_time(ts, ap, home)}" + (f", was {_clock(datetime.fromtimestamp(was, tz_of(ap)))}" if moved else ""))
+    return "\n".join(x for x in lines if x)
+
+
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
     name = who or leg["number"]
     sub = _sub(leg["number"], [leg], who)
@@ -304,6 +333,9 @@ def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> st
     if event == EV_CANCELED:
         name = f"{who}'s flight" if who else leg["number"]
         return f"❌ {name} is canceled\n{' · '.join(x for x in (sub, 'was ' + fmt_time(leg['sched_dep'], o, home)) if x)}"
+    if event == EV_DIVERTED:
+        name = f"{who}'s flight" if who else leg["number"]
+        return f"↪️ {name} diverted to {place(leg.get('diverted_to') or {})}\n{sub}".rstrip("\n")
     if event == EV_LEFT_GATE:
         gate = f"gate {o['gate']}" if o.get("gate") else "the gate"
         head, at, ap = f"🚶 {name} left {gate} in {_city(o)}", now, o

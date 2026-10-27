@@ -43,12 +43,14 @@
     "notify_events": {
       "options": {
         "tracking": "Now tracking (on the day of the flight)",
+        "schedule_changed": "Schedule changed (the airline moved the flight's times)",
         "delayed": "Delayed (departure 15+ min late, or changed again)",
         "canceled": "Canceled",
         "left_gate": "Left the gate",
         "took_off": "Took off",
         "landed": "Landed",
         "arrived_gate": "At the gate",
+        "diverted": "Diverted",
         "removed": "Stopped tracking",
         "problem": "Problems (not found, already landed)"
       }
