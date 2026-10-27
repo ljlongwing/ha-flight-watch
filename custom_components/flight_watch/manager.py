@@ -25,6 +25,7 @@ from .const import (
     CONF_EVENTS,
     CONF_NOTIFY,
     DOMAIN,
+    EV_CANCELED,
     EV_DELAYED,
     EV_PROBLEM,
     EV_REMOVED,
@@ -140,8 +141,8 @@ class FlightWatch:
             self.entries.pop(e["id"], None)
             await self._notify(EV_PROBLEM, e, f"⚠️ Not tracking {e['number']}: its {day:%a %b} {day.day} flight has already landed")
             return
-        for leg in legs:  # what already happened isn't news (the tracking message mentions a delay)
-            leg["sent"] = core.leg_events(leg, now)
+        for leg in legs:  # what already happened isn't news (the tracking message mentions a delay; a cancel still alerts)
+            leg["sent"] = [ev for ev in core.leg_events(leg, now) if ev != EV_CANCELED]
             leg["delay_sent"] = core.dep_delay(leg)
         e.update(legs=legs, source="fr24", state=STATE_TRACKING, next_check=now)
         await self._notify(EV_TRACKING, e, core.tracking_message(e["number"], legs, e.get("who", ""), now, self._home))

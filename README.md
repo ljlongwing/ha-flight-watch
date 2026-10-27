@@ -1,7 +1,7 @@
 # Flight Watch
 
 A Home Assistant integration for keeping an eye on the flights of people you care about. Add a flight number
-and a date. On that day it is tracked and you get alerts when it is delayed, leaves the gate, takes off, lands and
+and a date. On that day it is tracked and you get alerts when it is delayed or canceled, leaves the gate, takes off, lands and
 reaches the gate. Alerts can go to Telegram, the mobile app, email or any other notify entity.
 
 - **The right flight on the right day.** Flight numbers repeat daily, and some fly different routes on different
@@ -35,7 +35,7 @@ entity: sensor.flight_watch_tracked_flights  # optional
 | Setting | |
 |---|---|
 | Send alerts to | Any notify entities. Empty = Home Assistant notifications. |
-| Alerts to send | Now tracking, delayed, left the gate, took off, landed, at the gate, stopped tracking, problems. |
+| Alerts to send | Now tracking, delayed, canceled, left the gate, took off, landed, at the gate, stopped tracking, problems. |
 | AeroDataBox key | Optional. FR24 only lists flights about 8 days ahead; with a free [AeroDataBox](https://rapidapi.com/aedbx-aedbx/api/aerodatabox) key, routes for flights further out are shown too (checked weekly, a few calls a month). |
 
 ## Actions and events

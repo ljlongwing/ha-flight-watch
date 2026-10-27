@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
-from .const import EV_ARRIVED_GATE, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
+from .const import EV_ARRIVED_GATE, EV_CANCELED, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
 
 GATE_FALLBACK = 15 * 60  # call it 'at the gate' this long after landing if FR24 never says so
 DELAY_STEP = 15  # minutes: late enough to alert, and how far the estimate must move to alert again
@@ -52,6 +52,7 @@ def leg_from_fr24(f: dict) -> dict:
         "destination": _airport(ap.get("destination")),
         "live": bool(status.get("live")),
         "status": status.get("text"),
+        "canceled": ((status.get("generic") or {}).get("status") or {}).get("text") == "canceled",
         **_times(f.get("time") or {}),
     }
     for k in ("origin", "destination"):
@@ -143,6 +144,8 @@ TAXI_KT = 5
 
 def leg_events(leg: dict, now: float) -> list[str]:
     """Events this leg has reached, in order (the caller sends only the ones not in leg['sent'])."""
+    if leg.get("canceled") and not (leg.get("real_dep") or leg.get("real_arr")):
+        return [EV_CANCELED]
     ev = []
     # FR24 often goes live at the gate (transponder on while boarding), so wait for taxi speed.
     if (leg.get("live") and (leg.get("speed") or 0) >= TAXI_KT) or leg.get("real_dep") or leg.get("real_arr"):
@@ -167,7 +170,7 @@ def delay_change(leg: dict) -> int | None:
 
     Alerts once 15+ min late, again whenever the estimate moves 15+ min from the last alert,
     and once more if it comes back under 15 (back on schedule)."""
-    if leg.get("real_dep") or leg.get("real_arr") or EV_LEFT_GATE in leg.get("sent", []):
+    if leg.get("real_dep") or leg.get("real_arr") or leg.get("canceled") or EV_LEFT_GATE in leg.get("sent", []):
         return None
     d, last = dep_delay(leg), leg.get("delay_sent", 0)
     return d if abs(d - last) >= DELAY_STEP and max(d, last) >= DELAY_STEP else None
@@ -176,7 +179,8 @@ def delay_change(leg: dict) -> int | None:
 def leg_finished(leg: dict, now: float) -> bool:
     """At the gate, or long past its arrival with no word from FR24."""
     end = leg.get("real_arr") or leg.get("est_arr") or leg.get("sched_arr") or leg.get("sched_dep") or 0
-    return EV_ARRIVED_GATE in leg.get("sent", []) or now > end + 12 * 3600
+    sent = leg.get("sent", [])
+    return EV_ARRIVED_GATE in sent or EV_CANCELED in sent or now > end + 12 * 3600
 
 
 def leg_from_adb(a: dict) -> dict | None:
@@ -297,6 +301,9 @@ def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> st
     name = who or leg["number"]
     sub = _sub(leg["number"], [leg], who)
     o, d = leg["origin"], leg["destination"]
+    if event == EV_CANCELED:
+        name = f"{who}'s flight" if who else leg["number"]
+        return f"❌ {name} is canceled\n{' · '.join(x for x in (sub, 'was ' + fmt_time(leg['sched_dep'], o, home)) if x)}"
     if event == EV_LEFT_GATE:
         gate = f"gate {o['gate']}" if o.get("gate") else "the gate"
         head, at, ap = f"🚶 {name} left {gate} in {_city(o)}", now, o

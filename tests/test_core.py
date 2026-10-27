@@ -190,3 +190,17 @@ def test_delay_alerts():
     assert ok.startswith("✅ AA1 is back on schedule\nJFK → LAX\nDeparts 9:45 AM EDT") and "Scheduled" not in ok
     assert "(delayed 32 min)" in core.tracking_message("AA1", [leg], "", s - 3600, DENVER)
     assert core.mins(80) == "1 h 20 min" and core.mins(60) == "1 h" and core.mins(0) == "0 min"
+
+
+def test_canceled():
+    # status block as FR24 sent it for AA9933 on 2026-10-27
+    row = load("aa1.json")["result"]["response"]["data"][0]
+    row = {**row, "status": {"live": False, "text": "Canceled", "generic": {"status": {"text": "canceled", "type": "departure"}}}}
+    leg = core.leg_from_fr24(row)
+    assert leg["canceled"] and core.leg_events(leg, 0) == ["canceled"]
+    assert core.delay_change({**leg, "est_dep": leg["sched_dep"] + 3600}) is None
+    assert core.leg_finished({**leg, "sent": ["canceled"]}, 0)
+    assert not core.leg_from_fr24(load("ch.json"))["canceled"]
+    leg["origin"]["city"] = "New York"
+    msg = core.leg_message("canceled", leg, "Tony", 0, DENVER)
+    assert msg.startswith("❌ Tony's flight is canceled\nAA1 · JFK → LAX · was ") and "\n" not in msg.split("\n", 1)[1]

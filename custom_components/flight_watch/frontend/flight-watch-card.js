@@ -85,6 +85,7 @@ const TO_UNIT = { ft: 1, m: 0.3048, kt: 1, mph: 1.15078, kmh: 1.852 };
 const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} ${u === "kmh" ? "km/h" : u}`;
 
 function legStatus(l) {
+  if (l.canceled && !l.real_dep) return "❌ Canceled";
   if (l.sent?.includes("arrived_gate")) return "🧳 At the gate";
   if (l.real_arr) return "🛬 Landed";
   if (l.live && l.real_dep) return `✈️ In air${l.alt ? ` · ${inUnit(l.alt, UNITS.alt)}` : ""}${l.speed ? ` · ${inUnit(l.speed, UNITS.speed)}` : ""}`;
@@ -93,6 +94,7 @@ function legStatus(l) {
 }
 
 function delay(l) {
+  if (l.canceled && !l.real_dep) return "";
   const arr = l.real_arr || l.est_arr;
   const [act, sched] = arr && l.sched_arr ? [arr, l.sched_arr] : [l.est_dep, l.sched_dep];
   if (!act || !sched) return "";
