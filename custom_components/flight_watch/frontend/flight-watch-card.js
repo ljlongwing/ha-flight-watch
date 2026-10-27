@@ -81,8 +81,8 @@ function duration(legs) {
 
 // FR24 gives feet and knots; the integration's options pick what to show.
 let UNITS = { alt: "ft", speed: "kt" };
-const TO_UNIT = { ft: 1, m: 0.3048, kt: 1, mph: 1.15078, "km/h": 1.852 };
-const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} ${u}`;
+const TO_UNIT = { ft: 1, m: 0.3048, kt: 1, mph: 1.15078, kmh: 1.852 };
+const inUnit = (v, u) => `${Math.round(v * (TO_UNIT[u] || 1)).toLocaleString()} ${u === "kmh" ? "km/h" : u}`;
 
 function legStatus(l) {
   if (l.sent?.includes("arrived_gate")) return "🧳 At the gate";

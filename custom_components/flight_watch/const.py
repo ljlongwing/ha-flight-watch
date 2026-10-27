@@ -10,7 +10,7 @@ CONF_ADB_KEY = "aerodatabox_key"
 CONF_ALT_UNIT = "altitude_unit"
 CONF_SPEED_UNIT = "speed_unit"
 ALT_UNITS = ["ft", "m"]
-SPEED_UNITS = ["kt", "mph", "km/h"]
+SPEED_UNITS = ["kt", "mph", "kmh"]
 
 # Events a flight goes through, in order; also the notification choices.
 EV_TRACKING = "tracking"

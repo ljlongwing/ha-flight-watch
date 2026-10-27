@@ -61,7 +61,7 @@
       "options": {
         "kt": "Knots (kt)",
         "mph": "Miles per hour (mph)",
-        "km/h": "Kilometers per hour (km/h)"
+        "kmh": "Kilometers per hour (km/h)"
       }
     }
   },
