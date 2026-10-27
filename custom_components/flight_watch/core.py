@@ -93,7 +93,9 @@ def local_date(leg: dict) -> date:
 
 def legs_on_date(legs: list[dict], day: date) -> list[dict]:
     """Legs whose origin-local scheduled departure falls on `day`, in departure order."""
-    return sorted((x for x in legs if local_date(x) == day), key=lambda x: x["sched_dep"])
+    # A diversion's continuation keeps the original schedule; the leg that actually left first goes first.
+    return sorted((x for x in legs if local_date(x) == day),
+                  key=lambda x: (x["sched_dep"], x.get("real_dep") or x.get("est_dep") or x["sched_dep"]))
 
 
 def pick_legs(legs: list[dict], board: str | None = None, leave: str | None = None,
@@ -108,7 +110,7 @@ def pick_legs(legs: list[dict], board: str | None = None, leave: str | None = No
     out: list[dict] = []
     seen = {legs[i]["origin"].get("iata")} if legs else set()
     for x in legs[i:]:
-        dest = x["destination"].get("iata")
+        dest = x.get("diverted") or x["destination"].get("iata")  # a diverted leg connects on from where it went
         if not leave and dest in seen:
             break
         out.append(x)
@@ -182,6 +184,12 @@ def delay_change(leg: dict) -> int | None:
     return d if abs(d - last) >= DELAY_STEP and max(d, last) >= DELAY_STEP else None
 
 
+def continuation(legs: list[dict], diverted: dict) -> dict | None:
+    """The same flight number onward from the diversion airport, that day."""
+    return next((x for x in legs_on_date(legs, local_date(diverted))
+                 if x["origin"].get("iata") == diverted["diverted"] and not same_leg(x, diverted)), None)
+
+
 def schedule_of(legs: list[dict]) -> list[list]:
     """What schedule_moved compares: [origin, sched_dep, sched_arr] per leg."""
     return [[x["origin"].get("iata"), x.get("sched_dep"), x.get("sched_arr")] for x in legs]
@@ -196,8 +204,8 @@ def leg_finished(leg: dict, now: float) -> bool:
     """At the gate, or long past its arrival with no word from FR24."""
     end = leg.get("real_arr") or leg.get("est_arr") or leg.get("sched_arr") or leg.get("sched_dep") or 0
     sent = leg.get("sent", [])
-    if EV_DIVERTED in sent and not leg.get("live"):
-        return True
+    if EV_DIVERTED in sent and not leg.get("live") and leg.get("continued"):
+        return True  # on the ground, and the continuation leg takes over (none found: the 12 h rule below)
     return EV_ARRIVED_GATE in sent or EV_CANCELED in sent or now > end + 12 * 3600
 
 
@@ -326,6 +334,13 @@ def schedule_message(number: str, leg: dict, old: list, who: str, now: float, ho
     return "\n".join(x for x in lines if x)
 
 
+def continues_message(leg: dict, who: str, now: float, home: tzinfo) -> str:
+    name = f"{who}'s flight" if who else leg["number"]
+    dep = leg.get("est_dep") or leg["sched_dep"]
+    return (f"↪️ {name} continues from {_city(leg['origin'])}\n{_sub(leg['number'], [leg], who)}\n"
+            f"Departs {fmt_time(dep, leg['origin'], home)}{countdown(dep, now)}")
+
+
 def leg_message(event: str, leg: dict, who: str, now: float, home: tzinfo) -> str:
     name = who or leg["number"]
     sub = _sub(leg["number"], [leg], who)
@@ -360,7 +375,7 @@ def tracking_message(number: str, legs: list[dict], who: str, now: float, home: 
     sub = _sub(number, legs, who)
     if not legs or not _codes(legs):
         return f"{head}\n{sub}" if sub else head
-    first = next((x for x in legs if not x.get("real_arr")), legs[0])
+    first = next((x for x in legs if not x.get("real_arr") and not x.get("diverted")), legs[0])
     if first.get("real_dep"):  # added while airborne
         line = f"Took off {fmt_time(first['real_dep'], first['origin'], home)}"
         eta = first.get("est_arr") or first.get("sched_arr")

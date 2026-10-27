@@ -162,7 +162,8 @@ class FlightWatch:
         leg = active[0]
         dep = leg.get("est_dep") or leg["sched_dep"]
         near = leg.get("live") or leg.get("real_dep") or now > dep - 3 * HOUR
-        if near and leg.get("fr24_id"):
+        waiting = leg.get("diverted") and not leg.get("live") and not leg.get("continued")
+        if near and leg.get("fr24_id") and not waiting:
             fresh = [core.leg_from_fr24(await self.api.live(leg["fr24_id"]))]
         else:
             fresh = core.legs_from_list(await self.api.flight_list(e["number"]))
@@ -180,9 +181,19 @@ class FlightWatch:
                 if ev not in x["sent"]:
                     x["sent"].append(ev)
                     await self._notify(ev, e, core.leg_message(ev, x, e.get("who", ""), now, self._home), x)
+        for i, x in enumerate(legs):
+            if x.get("diverted") and not x.get("continued"):
+                c = next((y for y in legs[i + 1:] if y["origin"].get("iata") == x["diverted"]), None)
+                if c is None and (c := core.continuation(fresh, x)):
+                    legs.insert(i + 1, {**c, "sent": [], "delay_sent": core.dep_delay(c)})
+                if c:
+                    x["continued"] = True
+                    await self._notify(EV_DIVERTED, e, core.continues_message(c, e.get("who", ""), now, self._home), c)
         leg = next((x for x in legs if not core.leg_finished(x, now)), None)
         if leg is None:
             e.update(state=STATE_DONE, done_at=now, next_check=now)
+        elif leg.get("diverted") and not leg.get("live") and not leg.get("continued"):
+            e["next_check"] = now + 5 * MIN  # on the ground at the diversion airport: look for the onward flight
         elif leg.get("live") or leg.get("real_dep") or now > (leg.get("est_dep") or leg["sched_dep"]) - 3 * HOUR:
             e["next_check"] = now + (MIN if leg.get("fr24_id") else 2 * MIN)
         else:

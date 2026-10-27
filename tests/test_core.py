@@ -212,7 +212,8 @@ def test_diverted():
     assert leg["diverted"] == "LAR" and leg["diverted_to"]["city"] == "Laramie" and not leg["real_arr"]
     now = leg["sched_arr"] + 600
     assert core.leg_events(leg, now) == ["left_gate", "took_off", "diverted"]
-    assert core.leg_finished({**leg, "sent": ["diverted"]}, now)
+    assert core.leg_finished({**leg, "sent": ["diverted"], "continued": True}, now)
+    assert core.leg_finished({**leg, "sent": ["diverted"]}, leg["sched_arr"] + 13 * 3600)  # never continued
     assert not core.leg_finished({**leg, "sent": ["diverted"], "live": True}, now)  # still flying there
     assert core.leg_message("diverted", leg, "Tony", now, DENVER) == "↪️ Tony's flight diverted to Laramie (LAR)\nUA5089 · COD → DEN"
     assert core.leg_message("diverted", leg, "", now, DENVER) == "↪️ UA5089 diverted to Laramie (LAR)\nCOD → DEN"
@@ -230,3 +231,20 @@ def test_schedule_change():
     msg = core.schedule_message("AA1", later, old, "Tony", 0, DENVER).split("\n")
     assert msg[0] == "🗓️ Tony's flight has a new schedule" and msg[1] == "AA1 · JFK → LAX"
     assert msg[2].startswith("Departs ") and msg[2].endswith(", was 8:29 AM") and msg[3].startswith("Lands ")
+
+
+def test_diversion_continuation():
+    # UA5089 on 2026-10-27: COD→DEN diverted to LAR, then a new LAR→DEN row with the same schedule
+    day = core.legs_on_date(core.legs_from_list(load("ua5089_list.json")), date(2026, 10, 27))
+    assert [x["origin"]["iata"] for x in day] == ["COD", "LAR"]  # the one that left first goes first
+    assert [(x["origin"]["iata"], x["destination"]["iata"]) for x in core.pick_legs(day)] == [("COD", "DEN"), ("LAR", "DEN")]
+    c = core.continuation(day, day[0])
+    assert c["origin"]["iata"] == "LAR" and core.continuation(day, {**day[0], "diverted": "XXX"}) is None
+    msg = core.continues_message(c, "Tony", c["sched_dep"], DENVER)
+    assert msg.startswith("↪️ Tony's flight continues from Laramie\nUA5089 · LAR → DEN\nDeparts 8:36 AM MDT")
+    div = {**day[0], "sent": ["left_gate", "took_off", "diverted"]}
+    assert not core.leg_finished(div, day[0]["sched_dep"] + 3600)  # waits for the continuation
+    assert core.leg_finished({**div, "continued": True}, day[0]["sched_dep"] + 3600)
+    picked = core.pick_legs(day)
+    assert "
+Departs 8:36 AM MDT" in core.tracking_message("UA5089", picked, "", c["sched_dep"], DENVER)
