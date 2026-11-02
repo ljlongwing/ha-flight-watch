@@ -15,7 +15,7 @@ reaches the gate. Alerts can go to Telegram, the mobile app, email or any other 
 
 ## Install
 
-1. HACS → ⋮ → Custom repositories → add this repository as an *Integration*, then install **Flight Watch**.
+1. HACS → search for **Flight Watch** → Download.
    (Or copy `custom_components/flight_watch` into your `config/custom_components`.)
 2. Restart Home Assistant.
 3. Settings → Devices & services → Add integration → **Flight Watch**. Pick where alerts go and which ones.
