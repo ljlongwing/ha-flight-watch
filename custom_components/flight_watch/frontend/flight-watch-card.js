@@ -132,6 +132,19 @@ class FlightWatchCard extends HTMLElement {
     return { entity: DEFAULT_ENTITY };
   }
 
+  // HA renders this as the visual editor (no editor element needed).
+  static getConfigForm() {
+    const labels = { title: "Title", map: "Show the live map", entity: "Flight Watch sensor" };
+    return {
+      schema: [
+        { name: "title", default: "Flights", selector: { text: {} } },
+        { name: "map", default: true, selector: { boolean: {} } },
+        { name: "entity", default: DEFAULT_ENTITY, selector: { entity: { filter: { integration: "flight_watch", domain: "sensor" } } } },
+      ],
+      computeLabel: (s) => labels[s.name],
+    };
+  }
+
   getCardSize() {
     return 8;
   }

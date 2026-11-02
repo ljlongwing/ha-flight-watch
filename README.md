@@ -23,6 +23,8 @@ reaches the gate. Alerts can go to Telegram, the mobile app, email or any other 
 
 ## The card
 
+Add it from the dashboard's card picker; the title, map and sensor can be set in the visual editor, or in YAML:
+
 ```yaml
 type: custom:flight-watch-card
 title: Flights          # optional
