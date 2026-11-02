@@ -62,6 +62,7 @@ class FlightWatch:
         data = await self._store.async_load() or {}
         self.entries = {e["id"]: e for e in data.get("entries", [])}
         self.colors = data.get("colors", {})
+        await self._zones([x for e in self.entries.values() for x in e.get("legs", [])])
         self._unsub = async_track_time_interval(self.hass, self._tick, timedelta(seconds=MIN))
         self.hass.async_create_task(self.async_tick())
 
@@ -117,19 +118,19 @@ class FlightWatch:
             return
         e["next_check"] = now + 6 * HOUR
         if day <= today + timedelta(days=FR24_WINDOW_DAYS):
-            legs = self._pick(e, core.legs_on_date(core.legs_from_list(await self.api.flight_list(e["number"])), day))
+            legs = self._pick(e, core.legs_on_date(await self._zones(core.legs_from_list(await self.api.flight_list(e["number"]))), day))
             if legs:
                 await self._check_schedule(e, legs, now)
                 e["legs"], e["source"] = legs, "fr24"
         elif self.options.get(CONF_ADB_KEY) and e.get("source") != "fr24" and now - e.get("adb_checked", 0) > 7 * DAY:
             e["adb_checked"] = now
             rows = await self.api.adb(self.options[CONF_ADB_KEY], e["number"], e["date"]) or []
-            legs = self._pick(e, sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"]))
+            legs = self._pick(e, await self._zones(sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"])))
             if legs:
                 e["legs"], e["source"] = legs, "adb"
 
     async def _activate(self, e: dict, now: float, day: date) -> None:
-        all_legs = core.legs_from_list(await self.api.flight_list(e["number"]))
+        all_legs = await self._zones(core.legs_from_list(await self.api.flight_list(e["number"])))
         legs = self._pick(e, core.legs_on_date(all_legs, day))
         if not legs:
             e["next_check"] = now + HOUR
@@ -164,9 +165,9 @@ class FlightWatch:
         near = leg.get("live") or leg.get("real_dep") or now > dep - 3 * HOUR
         waiting = leg.get("diverted") and not leg.get("live") and not leg.get("continued")
         if near and leg.get("fr24_id") and not waiting:
-            fresh = [core.leg_from_fr24(await self.api.live(leg["fr24_id"]))]
+            fresh = await self._zones([core.leg_from_fr24(await self.api.live(leg["fr24_id"]))])
         else:
-            fresh = core.legs_from_list(await self.api.flight_list(e["number"]))
+            fresh = await self._zones(core.legs_from_list(await self.api.flight_list(e["number"])))
         for i, old in enumerate(legs):
             new = next((n for n in fresh if core.same_leg(old, n)), None)
             if new:
@@ -212,6 +213,13 @@ class FlightWatch:
 
     # ---------- services ----------
 
+    async def _zones(self, legs: list[dict]) -> list[dict]:
+        """Resolve the legs' airport time zones off the event loop so core.tz_of never touches disk."""
+        for name in core.zone_names(legs):
+            if tz := await dt_util.async_get_time_zone(name):
+                core.ZONES[name] = tz
+        return legs
+
     def _pick(self, e: dict, legs: list[dict]) -> list[dict]:
         """Only the legs this person flies; a connection starts where their other flight that day lands."""
         lands = {o["legs"][-1]["destination"].get("iata") for o in self.entries.values()
@@ -226,10 +234,10 @@ class FlightWatch:
             legs: list[dict] = []
             try:
                 if today - timedelta(days=1) <= day <= today + timedelta(days=FR24_WINDOW_DAYS):
-                    legs = core.legs_on_date(core.legs_from_list(await self.api.flight_list(n)), day)
+                    legs = core.legs_on_date(await self._zones(core.legs_from_list(await self.api.flight_list(n))), day)
                 elif self.options.get(CONF_ADB_KEY):
                     rows = await self.api.adb(self.options[CONF_ADB_KEY], n, day.isoformat()) or []
-                    legs = sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"])
+                    legs = await self._zones(sorted(filter(None, map(core.leg_from_adb, rows)), key=lambda x: x["sched_dep"]))
             except (RateLimited, aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
                 _LOGGER.debug("lookup %s: %s", n, err)  # legs unknown: added anyway, picked automatically later
             out.append({"number": n, "legs": [{k: x.get(k) for k in ("origin", "destination", "sched_dep", "sched_arr")}

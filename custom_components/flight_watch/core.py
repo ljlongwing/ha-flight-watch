@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone, tzinfo
-from zoneinfo import ZoneInfo
 
 from .const import EV_ARRIVED_GATE, EV_CANCELED, EV_DIVERTED, EV_LANDED, EV_LEFT_GATE, EV_TOOK_OFF
 
 GATE_FALLBACK = 15 * 60  # call it 'at the gate' this long after landing if FR24 never says so
 DELAY_STEP = 15  # minutes: late enough to alert, and how far the estimate must move to alert again
 SCHEDULE_STEP = 5  # minutes a scheduled time must move to count as a new schedule
+ZONES: dict[str, tzinfo] = {}  # IANA name -> tzinfo, resolved off the event loop by the manager
 
 
 def _airport(a: dict | None) -> dict:
@@ -80,11 +80,15 @@ def list_range(legs: list[dict]) -> tuple[date, date] | None:
     return (min(days), max(days)) if days else None
 
 
+def zone_names(legs: list[dict]) -> set[str]:
+    """Airport time zone names in these legs that are not resolved into ZONES yet."""
+    return {ap["tz"] for x in legs if x for ap in (x.get("origin") or {}, x.get("destination") or {})
+            if ap.get("tz")} - ZONES.keys()
+
+
 def tz_of(ap: dict) -> tzinfo:
-    try:
-        return ZoneInfo(ap["tz"]) if ap.get("tz") else timezone(timedelta(seconds=ap.get("offset") or 0))
-    except (KeyError, ValueError):
-        return timezone(timedelta(seconds=ap.get("offset") or 0))
+    # Only reads the cache: loading a zone file is disk I/O, which must not happen on the event loop.
+    return ZONES.get(ap.get("tz") or "") or timezone(timedelta(seconds=ap.get("offset") or 0))
 
 
 def local_date(leg: dict) -> date:

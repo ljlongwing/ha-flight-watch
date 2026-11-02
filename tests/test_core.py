@@ -18,6 +18,22 @@ FIX = Path(__file__).parent / "fixtures"
 DENVER = ZoneInfo("America/Denver")
 
 
+@pytest.fixture(autouse=True)
+def zones():
+    """Resolve every airport zone up front, as the manager does off the event loop."""
+    core.ZONES.update({n: ZoneInfo(n) for n in ("America/Denver", "America/New_York", "America/Los_Angeles",
+                                                  "America/Chicago", "Europe/London")})
+    yield
+    core.ZONES.clear()
+
+
+def test_zone_names_and_fallback():
+    leg = {"origin": {"tz": "America/Denver", "offset": -21600}, "destination": {"tz": "Asia/Tokyo", "offset": 32400}}
+    assert core.zone_names([leg, None]) == {"Asia/Tokyo"}  # Denver already resolved
+    assert core.tz_of(leg["origin"]) is core.ZONES["America/Denver"]
+    assert core.tz_of(leg["destination"]).utcoffset(None).total_seconds() == 32400  # unresolved: fixed offset
+
+
 def load(name):
     return json.loads((FIX / name).read_text(encoding="utf8"))
 
